@@ -31,7 +31,8 @@ export const SystemSnapshotView = ({ snapshots, settings, onCreate, onRestore, o
     };
 
     const handleSaveSettings = () => {
-        onUpdateSettings(localSettings);
+        // Per user request, ensure auto snapshot is always enabled when saving.
+        onUpdateSettings({ ...localSettings, autoSnapshotEnabled: true });
     };
 
     return (
@@ -79,13 +80,13 @@ export const SystemSnapshotView = ({ snapshots, settings, onCreate, onRestore, o
                             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><Settings size={18} className="text-[#70AD47]"/> 快照设置</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg">
-                                    <label htmlFor="auto-snapshot-toggle" className="text-sm font-bold text-slate-600 cursor-pointer">开启自动快照</label>
-                                    <div className="relative">
+                                    <label htmlFor="auto-snapshot-toggle" className="text-sm font-bold text-slate-600 cursor-not-allowed">开启自动快照</label>
+                                    <div className="relative cursor-not-allowed">
                                         <input 
                                             type="checkbox" 
                                             id="auto-snapshot-toggle"
-                                            checked={localSettings.autoSnapshotEnabled} 
-                                            onChange={(e) => handleSettingsChange('autoSnapshotEnabled', e.target.checked)} 
+                                            checked={true}
+                                            disabled
                                             className="sr-only peer" />
                                         <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#70AD47]"></div>
                                     </div>

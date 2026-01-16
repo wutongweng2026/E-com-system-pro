@@ -6,6 +6,10 @@
 
 本系统旨在解决现代电商运营的核心痛点：数据源分散、关联分析困难、依赖人工经验、以及对AI能力的渴望与应用鸿沟。通过将先进的前端技术与强大的Google Gemini AI模型深度融合，“数舰”将数据转化为洞察，将洞察转化为行动，最终赋能企业实现可持续的、由数据智能驱动的业务增长。
 
+### 项目仓库 (Project Repository)
+
+- **GitHub**: [https://github.com/wutongweng2026/E-com-system-pro](https://github.com/wutongweng2026/E-com-system-pro)
+
 ---
 
 ## I. 系统哲学与核心架构 (System Philosophy & Core Architecture)
@@ -61,7 +65,7 @@
   - **作用**: 为事实表中的数据提供丰富的业务背景，是实现深度分析（如下钻、切片）的基础。例如，计算利润时，正是通过`fact_shangzhi`中的`sku_code`关联到`dim_skus`中的`costPrice`。
 
 - **表结构定义 (Schema Definitions)**
-  - **定义**: 描述物理数据（Excel列头）如何映射到系统内部字段（`key`）的元数据。
+  - **定义**: 描述物理数据（Excel列头）如何映射到系统内部字段（`key`）の元数据。
   - **示例**: 在`lib/schemas.ts`中，为“GMV”这个业务指标定义了`key: 'paid_amount'`，并提供了别名`tags: ['成交金额', 'GMV']`。
   - **价值**: 使得系统能够兼容不同来源、不同命名习惯的表格，用户只需在「数据体验」模块调整`tags`，即可让系统“认识”新的列名，实现了极高的灵活性和扩展性。
 
