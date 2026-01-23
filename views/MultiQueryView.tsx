@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Zap, ChevronDown, BarChart3, X, Download, TrendingUp, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
 import { Shop, ProductSKU, FieldDefinition } from '../lib/types';
@@ -15,6 +15,18 @@ interface MultiQueryViewProps {
         jingzhuntong: FieldDefinition[];
     };
 }
+
+// 核心指标色彩映射表
+const METRIC_COLORS: Record<string, string> = {
+    'pv': '#3B82F6',                // 蓝色
+    'uv': '#06B6D4',                // 青色
+    'paid_items': '#22C55E',         // 绿色
+    'paid_amount': '#059669',        // 翠绿色
+    'cost': '#F43F5E',               // 玫瑰红
+    'cpc': '#F59E0B',               // 琥珀色
+    'roi': '#6366F1',               // 靛蓝色
+    'total_order_amount': '#8B5CF6' // 紫罗兰色
+};
 
 const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMetrics, selectedMetrics, onConfirm }: any) => {
     const [tempSelected, setTempSelected] = useState(new Set(selectedMetrics));
@@ -79,11 +91,11 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
     );
 };
 
-// 业务看板数值精度格式化 (CPC/ROI 1位小数)
-const formatNumberForCard = (value: number, key: string) => {
+// 数值精度格式化工具
+const formatMetricValue = (value: number, key: string) => {
     if (key === 'roi' || key === 'cpc') return (value || 0).toFixed(1);
     if (key.includes('amount') || key.includes('cost')) return `¥${(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-    return (value || 0).toLocaleString();
+    return Math.round(value || 0).toLocaleString();
 };
 
 const getChange = (current: number, previous: number) => {
@@ -96,10 +108,11 @@ const isChangePositive = (key: string, change: number) => {
     return change > 0;
 };
 
-// 趋势图组件 (支持多量级指标归一化缩放)
+// 趋势图组件 (支持色彩同步与动态 Tooltip)
 const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[], chartMetrics: Set<string>, metricsMap: Map<string, any> }) => {
-    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
-    const metricColors = useMemo(() => Array.from(metricsMap.keys()).reduce((acc, key, i) => ({ ...acc, [key]: colors[i % colors.length] }), {}), [metricsMap]);
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const svgRef = useRef<SVGSVGElement>(null);
 
     if (dailyData.length < 2 || chartMetrics.size === 0) {
         return <div className="h-full flex items-center justify-center text-slate-400">请执行查询并勾选指标以显示趋势</div>;
@@ -111,50 +124,122 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
 
     const selectedMetricsData = Array.from(chartMetrics);
     
-    // 算法：为每个勾选指标计算其自身的峰值，用于实现“局部自适应缩放”
+    // 计算归一化基准
     const metricMaxMap = new Map<string, number>();
     selectedMetricsData.forEach(key => {
-        const max = Math.max(...dailyData.map(d => d[key] || 0), 0.1); // 防止0除
+        const max = Math.max(...dailyData.map(d => d[key] || 0), 0.1);
         metricMaxMap.set(key, max);
     });
     
     const xScale = (index: number) => padding.left + (index / (dailyData.length - 1)) * (width - padding.left - padding.right);
-    
-    // Y轴比例函数：(当前值 / 该指标最大值) * 画布有效高度
     const yScale = (value: number, metricKey: string) => {
         const max = metricMaxMap.get(metricKey) || 1;
         return height - padding.bottom - (value / max) * (height - padding.top - padding.bottom);
     };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!svgRef.current) return;
+        const rect = svgRef.current.getBoundingClientRect();
+        const svgX = ((e.clientX - rect.left) / rect.width) * width;
+        const index = Math.round(((svgX - padding.left) / (width - padding.left - padding.right)) * (dailyData.length - 1));
+        
+        if (index >= 0 && index < dailyData.length) {
+            setHoveredIndex(index);
+            // Tooltip 浮层位置计算（防止溢出右边界）
+            const tooltipX = e.clientX - rect.left > rect.width / 2 ? e.clientX - rect.left - 180 : e.clientX - rect.left + 20;
+            setTooltipPos({ x: tooltipX, y: e.clientY - rect.top });
+        }
+    };
     
     return (
-        <div className="relative pt-6">
+        <div className="relative pt-6 group" onMouseLeave={() => setHoveredIndex(null)}>
              <div className="absolute top-0 right-0 flex flex-wrap justify-end gap-x-4 gap-y-2 text-[10px]">
                 {selectedMetricsData.map(key => (
                     <div key={key} className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: (metricColors as any)[key] }}></div>
+                        <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: METRIC_COLORS[key] }}></div>
                         <span className="font-bold text-slate-500">{metricsMap.get(key)?.label}</span>
                     </div>
                 ))}
             </div>
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto">
+
+            <svg 
+                ref={svgRef}
+                viewBox={`0 0 ${width} ${height}`} 
+                className="w-full h-auto cursor-crosshair"
+                onMouseMove={handleMouseMove}
+            >
+                {/* 坐标轴 */}
                 <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="#e2e8f0" strokeWidth="1" />
                 {dailyData.map((d, i) => ( (i === 0 || i === dailyData.length - 1 || i % Math.ceil(dailyData.length / 8) === 0) &&
                     <text key={i} x={xScale(i)} y={height - padding.bottom + 15} textAnchor="middle" fontSize="10" fontWeight="bold" fill="#94a3b8">{d.date.substring(5)}</text>
                 ))}
 
+                {/* 悬停对齐线 */}
+                {hoveredIndex !== null && (
+                    <line 
+                        x1={xScale(hoveredIndex)} 
+                        y1={padding.top} 
+                        x2={xScale(hoveredIndex)} 
+                        y2={height - padding.bottom} 
+                        stroke="#70AD47" 
+                        strokeWidth="1" 
+                        strokeDasharray="4 2" 
+                    />
+                )}
+
+                {/* 趋势线 */}
                 {selectedMetricsData.map(key => (
                     <path
                         key={key}
                         d={`M ${dailyData.map((d, i) => `${xScale(i)},${yScale(d[key] || 0, key)}`).join(' L ')}`}
                         fill="none"
-                        stroke={(metricColors as any)[key]}
+                        stroke={METRIC_COLORS[key]}
                         strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
+                        className="transition-opacity duration-300"
+                        style={{ opacity: hoveredIndex === null ? 1 : 0.8 }}
+                    />
+                ))}
+
+                {/* 悬停数据点突出显示 */}
+                {hoveredIndex !== null && selectedMetricsData.map(key => (
+                    <circle 
+                        key={key}
+                        cx={xScale(hoveredIndex)}
+                        cy={yScale(dailyData[hoveredIndex][key] || 0, key)}
+                        r="4"
+                        fill="white"
+                        stroke={METRIC_COLORS[key]}
+                        strokeWidth="2.5"
                     />
                 ))}
             </svg>
-            <div className="mt-2 text-center text-[9px] text-slate-400 font-bold italic">* 不同单位量级已自动通过归一化算法对齐，用于观察波动同步性</div>
+
+            {/* 动态悬浮窗 Tooltip */}
+            {hoveredIndex !== null && (
+                <div 
+                    className="absolute z-50 pointer-events-none bg-white/95 backdrop-blur-sm border border-slate-200 shadow-xl rounded-xl p-3 w-40 animate-fadeIn"
+                    style={{ left: tooltipPos.x, top: tooltipPos.y }}
+                >
+                    <p className="text-[10px] font-black text-slate-400 mb-2 border-b border-slate-100 pb-1">{dailyData[hoveredIndex].date}</p>
+                    <div className="space-y-1.5">
+                        {selectedMetricsData.map(key => (
+                            <div key={key} className="flex justify-between items-center gap-2">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: METRIC_COLORS[key] }}></div>
+                                    <span className="text-[10px] font-bold text-slate-500 truncate max-w-[60px]">{metricsMap.get(key)?.label}</span>
+                                </div>
+                                <span className="text-[11px] font-black text-slate-800 tabular-nums">
+                                    {formatMetricValue(dailyData[hoveredIndex][key] || 0, key)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            <div className="mt-2 text-center text-[9px] text-slate-400 font-bold italic">* 各指标线条已归一化，颜色与上方卡片同步；移动鼠标查看具体数值</div>
         </div>
     );
 };
@@ -183,11 +268,11 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const [visualisationData, setVisualisationData] = useState<any>(null);
     const [comparisonType, setComparisonType] = useState<'period' | 'year'>('period');
     
+    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'cost', 'cpc', 'roi', 'total_order_amount'];
     // 默认勾选 访客数、成交件数、消耗(花费)
     const [chartMetrics, setChartMetrics] = useState<Set<string>>(new Set(['uv', 'paid_items', 'cost']));
     
     const ROWS_PER_PAGE = 50;
-    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'cost', 'cpc', 'roi', 'total_order_amount'];
     
     const handleReset = () => {
         setStartDate(getInitialDates().startDate);
@@ -250,7 +335,6 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${skuCode}`;
                     }
                     if (timeDimension === 'week') {
-                        // 自然周：周一为起始
                         const date = new Date(dateStr);
                         const day = date.getDay() || 7;
                         date.setUTCDate(date.getUTCDate() - day + 1);
@@ -289,7 +373,6 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
             };
 
             const mainPeriodData = getDataForPeriod(startDate, endDate);
-            
             const mainStart = new Date(startDate);
             const mainEnd = new Date(endDate);
             const diffDays = (mainEnd.getTime() - mainStart.getTime()) / (1000 * 3600 * 24);
@@ -362,8 +445,8 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
         
         map.set('pv', { ...(map.get('pv') || {key: 'pv', label:'浏览量', type:'INTEGER'}), label: '浏览量' });
         map.set('uv', { ...(map.get('uv') || {key: 'uv', label:'访客数', type:'INTEGER'}), label: '访客数' });
-        map.set('paid_items', { ...(map.get('paid_items') || {key: 'paid_items', label:'成交件数', type:'INTEGER'}), label: '成交件数' });
-        map.set('paid_amount', { ...(map.get('paid_amount') || {key: 'paid_amount', label:'成交金额', type:'REAL'}), label: '成交金额' });
+        map.set('paid_items', { ...(map.get('paid_items') || {key: 'paid_items', label:'CA', type:'INTEGER'}), label: '成交件数' });
+        map.set('paid_amount', { ...(map.get('paid_amount') || {key: 'paid_amount', label:'GMV', type:'REAL'}), label: '成交金额' });
         map.set('cost', { ...(map.get('cost') || {key: 'cost', label:'花费', type:'REAL'}), label: '消耗' });
         map.set('total_order_amount', { ...(map.get('total_order_amount') || {key:'total_order_amount', label:'总订单金额', type:'REAL'}), label: '总成交额' });
 
@@ -498,6 +581,8 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
                         {VISUAL_METRICS.map(key => {
                             const metricLabel = allMetricsMap.get(key)?.label || key;
+                            const metricColor = METRIC_COLORS[key] || '#94a3b8';
+
                             if (!visualisationData) {
                                 return (
                                     <div key={key} className="p-6 rounded-2xl bg-slate-50/50 border border-slate-100 group">
@@ -514,15 +599,20 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             const compValue = visualisationData.compTotals[key] || 0;
                             const change = getChange(mainValue, compValue);
                             const isPositive = isChangePositive(key, change);
-                            const accentColor = ['pv', 'uv', 'cost'].includes(key) ? 'rose' : 'teal';
 
                             return (
-                                <div key={key} className={`p-6 rounded-2xl bg-white border border-slate-100 shadow-sm group hover:border-${accentColor}-200 transition-all`}>
-                                    <label className={`flex items-center gap-2 text-[10px] font-black text-${accentColor}-500 uppercase tracking-widest cursor-pointer`}>
-                                        <input type="checkbox" checked={chartMetrics.has(key)} onChange={() => setChartMetrics(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;})} className={`form-checkbox h-3.5 w-3.5 bg-transparent border-${accentColor}-200 rounded-sm text-[#70AD47] focus:ring-0`}/>
+                                <div key={key} style={{ borderColor: chartMetrics.has(key) ? `${metricColor}30` : '' }} className={`p-6 rounded-2xl bg-white border border-slate-100 shadow-sm group hover:border-slate-200 transition-all`}>
+                                    <label style={{ color: metricColor }} className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={chartMetrics.has(key)} 
+                                            onChange={() => setChartMetrics(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;})} 
+                                            style={{ color: metricColor }}
+                                            className={`form-checkbox h-3.5 w-3.5 bg-transparent border-slate-200 rounded-sm focus:ring-0`}
+                                        />
                                         {metricLabel}
                                     </label>
-                                    <p className="text-3xl font-black mt-3 text-slate-800">{formatNumberForCard(mainValue, key)}</p>
+                                    <p className="text-3xl font-black mt-3 text-slate-800">{formatMetricValue(mainValue, key)}</p>
                                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-50 text-[10px] font-black">
                                         <span className="text-slate-400 font-bold">环比</span>
                                         {isFinite(change) && (
@@ -537,7 +627,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                         })}
                     </div>
                     {visualisationData?.dailyData ? (
-                        <div className="bg-slate-50/30 p-6 rounded-2xl border border-slate-100">
+                        <div className="bg-slate-50/30 p-6 rounded-2xl border border-slate-100 overflow-visible">
                              <TrendChart dailyData={visualisationData.dailyData} chartMetrics={chartMetrics} metricsMap={allMetricsMap} />
                         </div>
                     ) : (
