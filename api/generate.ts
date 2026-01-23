@@ -1,5 +1,7 @@
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI, GenerateContentResponse, GenerateContentRequest } from '@google/genai';
+// Use GenerateContentParameters instead of GenerateContentRequest according to guidelines
+import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters } from '@google/genai';
 
 export default async function handler(
     request: VercelRequest,
@@ -10,14 +12,17 @@ export default async function handler(
     }
 
     try {
-        const body: GenerateContentRequest = request.body;
+        // Use GenerateContentParameters instead of GenerateContentRequest
+        const body: GenerateContentParameters = request.body;
 
         if (!process.env.API_KEY) {
             return response.status(500).json({ error: 'API_KEY environment variable not set.' });
         }
         
+        // Initialize GoogleGenAI with named apiKey parameter
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         
+        // Call generateContent directly on ai.models
         const geminiResponse: GenerateContentResponse = await ai.models.generateContent(body);
 
         return response.status(200).json(geminiResponse);

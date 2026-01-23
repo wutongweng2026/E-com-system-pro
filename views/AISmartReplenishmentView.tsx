@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { PackagePlus, AlertTriangle, ChevronsRight, X, Warehouse, Truck } from 'lucide-react';
 import { ProductSKU, Shop } from '../lib/types';
@@ -7,7 +8,8 @@ interface AIReplenishmentViewProps {
   skus: ProductSKU[];
   shangzhiData: any[];
   shops: Shop[];
-  onUpdateSKU: (sku: ProductSKU) => boolean;
+  // Fix: Changed return type to allow Promise<boolean> for async updates
+  onUpdateSKU: (sku: ProductSKU) => Promise<boolean> | boolean;
   addToast: (type: 'success' | 'error', title: string, message: string) => void;
 }
 
@@ -158,13 +160,14 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
         });
     }, [replenishmentData, filters]);
 
-    const handleReplenishConfirm = (skuToUpdate: ProductSKU, quantities: { warehouse: number, factory: number }) => {
+    // Fix: Made handler async and added await for onUpdateSKU call
+    const handleReplenishConfirm = async (skuToUpdate: ProductSKU, quantities: { warehouse: number, factory: number }) => {
         const updatedSku = {
             ...skuToUpdate,
             warehouseStock: (skuToUpdate.warehouseStock || 0) + quantities.warehouse,
             factoryStock: (skuToUpdate.factoryStock || 0) + quantities.factory,
         };
-        if (onUpdateSKU(updatedSku)) {
+        if (await onUpdateSKU(updatedSku)) {
             addToast('success', '补货成功', `SKU [${skuToUpdate.code}] 库存已更新。`);
         }
         setReplenishingSku(null);

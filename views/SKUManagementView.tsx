@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown } from 'lucide-react';
@@ -7,12 +8,12 @@ import { ConfirmModal } from '../components/ConfirmModal';
 
 
 // ADD/EDIT MODALS
-const AddSKUModal = ({ isOpen, onClose, onConfirm, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: Omit<ProductSKU, 'id'>) => boolean, shops: Shop[], addToast: any }) => {
-    // ... same as before
+// Fix: Updated return types to allow Promise<boolean> for async operations
+const AddSKUModal = ({ isOpen, onClose, onConfirm, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: Omit<ProductSKU, 'id'>) => Promise<boolean> | boolean, shops: Shop[], addToast: any }) => {
     return <SKUFormModal isOpen={isOpen} onClose={onClose} onConfirm={onConfirm} shops={shops} addToast={addToast} title="新增 SKU 资产" confirmText="确认新增" />;
 };
 
-const EditSKUModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: ProductSKU) => boolean, skuToEdit: ProductSKU, shops: Shop[], addToast: any }) => {
+const EditSKUModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: ProductSKU) => Promise<boolean> | boolean, skuToEdit: ProductSKU, shops: Shop[], addToast: any }) => {
     return <SKUFormModal isOpen={isOpen} onClose={onClose} onConfirm={onConfirm} skuToEdit={skuToEdit} shops={shops} addToast={addToast} title="更新 SKU 资产" confirmText="确认更新" />;
 };
 
@@ -60,7 +61,8 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
         }
     }, [isOpen, skuToEdit, shops]);
 
-    const handleConfirm = () => {
+    // Fix: Added async/await for onConfirm call
+    const handleConfirm = async () => {
         setError('');
         if (!code.trim() || !name.trim() || !shopId) {
             setError('SKU编码、商品名称和所属店铺为必填项。');
@@ -87,7 +89,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
             factoryStock: factoryStock ? parseInt(factoryStock, 10) : undefined,
         };
         
-        if (onConfirm(payload)) {
+        if (await onConfirm(payload)) {
             onClose();
         }
     };
@@ -220,13 +222,14 @@ const ShopFormModal = ({ isOpen, onClose, onConfirm, shopToEdit, title, confirmT
         }
     }, [isOpen, shopToEdit]);
 
-    const handleConfirm = () => {
+    // Fix: Added async/await for onConfirm call
+    const handleConfirm = async () => {
         if (!name.trim()) {
             setError('店铺名称不能为空。');
             return;
         }
         const payload = { id: shopToEdit?.id, name: name.trim(), platformId: platformId.trim(), mode };
-        if (onConfirm(payload)) {
+        if (await onConfirm(payload)) {
             onClose();
         }
     };
@@ -288,13 +291,14 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
         );
     };
 
-    const handleConfirm = () => {
+    // Fix: Added async/await for onConfirm call
+    const handleConfirm = async () => {
         if (!name.trim() || !account.trim()) {
             setError('姓名和客服账号不能为空。');
             return;
         }
         const payload = { id: agentToEdit?.id, name: name.trim(), account: account.trim(), shopIds: selectedShopIds };
-        if (onConfirm(payload)) {
+        if (await onConfirm(payload)) {
             onClose();
         }
     };
@@ -344,7 +348,7 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
     );
 };
 
-const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: boolean, onClose: () => void, onConfirm: (data: Omit<SkuList, 'id'> | SkuList) => boolean, listToEdit?: SkuList | null }) => {
+const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: boolean, onClose: () => void, onConfirm: (data: Omit<SkuList, 'id'> | SkuList) => Promise<boolean> | boolean, listToEdit?: SkuList | null }) => {
     const [name, setName] = useState('');
     const [skuCodes, setSkuCodes] = useState('');
     const [error, setError] = useState('');
@@ -357,7 +361,8 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
         }
     }, [isOpen, listToEdit]);
 
-    const handleConfirm = () => {
+    // Fix: Added async/await for onConfirm call
+    const handleConfirm = async () => {
         if (!name.trim()) {
             setError('清单名称不能为空。');
             return;
@@ -368,7 +373,7 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
             name: name.trim(),
             skuCodes: parsedSkuCodes,
         };
-        if (onConfirm(payload)) {
+        if (await onConfirm(payload)) {
             onClose();
         }
     };
@@ -413,20 +418,21 @@ interface SKUManagementViewProps {
     skus: ProductSKU[];
     agents: CustomerServiceAgent[];
     skuLists: SkuList[];
-    onAddNewSKU: (skuData: Omit<ProductSKU, 'id'>) => boolean;
-    onUpdateSKU: (skuData: ProductSKU) => boolean;
+    // Fix: Updated callback return types to support async/await from App.tsx
+    onAddNewSKU: (skuData: Omit<ProductSKU, 'id'>) => Promise<boolean> | boolean;
+    onUpdateSKU: (skuData: ProductSKU) => Promise<boolean> | boolean;
     onDeleteSKU: (id: string) => void;
     onBulkAddSKUs: (newSKUs: Omit<ProductSKU, 'id'>[]) => void;
-    onAddNewShop: (shopData: Omit<Shop, 'id'>) => boolean;
-    onUpdateShop: (shopData: Shop) => boolean;
+    onAddNewShop: (shopData: Omit<Shop, 'id'>) => Promise<boolean> | boolean;
+    onUpdateShop: (shopData: Shop) => Promise<boolean> | boolean;
     onDeleteShop: (id: string) => void;
     onBulkAddShops: (newShops: Omit<Shop, 'id'>[]) => void;
-    onAddNewAgent: (agentData: Omit<CustomerServiceAgent, 'id'>) => boolean;
-    onUpdateAgent: (agentData: CustomerServiceAgent) => boolean;
+    onAddNewAgent: (agentData: Omit<CustomerServiceAgent, 'id'>) => Promise<boolean> | boolean;
+    onUpdateAgent: (agentData: CustomerServiceAgent) => Promise<boolean> | boolean;
     onDeleteAgent: (id: string) => void;
     onBulkAddAgents: (newAgents: Omit<CustomerServiceAgent, 'id'>[]) => void;
-    onAddNewSkuList: (listData: Omit<SkuList, 'id'>) => boolean;
-    onUpdateSkuList: (listData: SkuList) => boolean;
+    onAddNewSkuList: (listData: Omit<SkuList, 'id'>) => Promise<boolean> | boolean;
+    onUpdateSkuList: (listData: SkuList) => Promise<boolean> | boolean;
     onDeleteSkuList: (listId: string) => void;
     addToast: (type: 'success' | 'error', title: string, message: string) => void;
 }
