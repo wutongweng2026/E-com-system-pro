@@ -20,12 +20,13 @@ interface MultiQueryViewProps {
 const METRIC_COLORS: Record<string, string> = {
     'pv': '#3B82F6',                // 蓝色
     'uv': '#06B6D4',                // 青色
+    'paid_users': '#8B5CF6',         // 紫色
     'paid_items': '#22C55E',         // 绿色
     'paid_amount': '#059669',        // 翠绿色
-    'paid_conversion_rate': '#F59E0B', // 橙黄色 (新增转化率)
-    'cost': '#F43F5E',               // 玫瑰红 (广告花费)
+    'paid_conversion_rate': '#F59E0B', // 橙黄色
+    'cost': '#F43F5E',               // 玫瑰红
     'cpc': '#6366F1',                // 靛蓝色
-    'roi': '#8B5CF6'                 // 紫罗兰色
+    'roi': '#D946EF'                 // 粉紫色
 };
 
 const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMetrics, selectedMetrics, onConfirm }: any) => {
@@ -40,11 +41,7 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
     const handleToggle = (key: string) => {
         setTempSelected(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
+            if (newSet.has(key)) newSet.delete(key); else newSet.add(key);
             return newSet;
         });
     };
@@ -91,9 +88,9 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
     );
 };
 
-// 数值精度格式化工具
 const formatMetricValue = (value: number, key: string) => {
-    if (key === 'roi' || key === 'cpc') return (value || 0).toFixed(1);
+    if (key === 'roi') return (value || 0).toFixed(1);
+    if (key === 'cpc') return `¥${(value || 0).toFixed(1)}`;
     if (key === 'paid_conversion_rate') return `${(value * 100).toFixed(2)}%`;
     if (key.includes('amount') || key.includes('cost')) return `¥${(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     return Math.round(value || 0).toLocaleString();
@@ -104,7 +101,6 @@ const getChange = (current: number, previous: number) => {
     return ((current - previous) / previous) * 100;
 };
 
-// 趋势图组件
 const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[], chartMetrics: Set<string>, metricsMap: Map<string, any> }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -119,8 +115,6 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
     const padding = { top: 20, right: 20, bottom: 25, left: 40 };
 
     const selectedMetricsData = Array.from(chartMetrics);
-    
-    // 计算归一化基准
     const metricMaxMap = new Map<string, number>();
     selectedMetricsData.forEach(key => {
         const max = Math.max(...dailyData.map(d => d[key] || 0), 0.0001);
@@ -138,7 +132,6 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
         const rect = svgRef.current.getBoundingClientRect();
         const svgX = ((e.clientX - rect.left) / rect.width) * width;
         const index = Math.round(((svgX - padding.left) / (width - padding.left - padding.right)) * (dailyData.length - 1));
-        
         if (index >= 0 && index < dailyData.length) {
             setHoveredIndex(index);
             const tooltipX = e.clientX - rect.left > rect.width / 2 ? e.clientX - rect.left - 180 : e.clientX - rect.left + 20;
@@ -156,102 +149,42 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                     </div>
                 ))}
             </div>
-
-            <svg 
-                ref={svgRef}
-                viewBox={`0 0 ${width} ${height}`} 
-                className="w-full h-auto cursor-crosshair"
-                onMouseMove={handleMouseMove}
-            >
-                {/* 坐标轴 */}
+            <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} className="w-full h-auto cursor-crosshair" onMouseMove={handleMouseMove}>
                 <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="#e2e8f0" strokeWidth="1" />
                 {dailyData.map((d, i) => ( (i === 0 || i === dailyData.length - 1 || i % Math.ceil(dailyData.length / 8) === 0) &&
                     <text key={i} x={xScale(i)} y={height - padding.bottom + 12} textAnchor="middle" fontSize="6" fontWeight="black" fill="#cbd5e1">{d.date.substring(5)}</text>
                 ))}
-
-                {/* 悬停对齐线 */}
                 {hoveredIndex !== null && (
-                    <line 
-                        x1={xScale(hoveredIndex)} 
-                        y1={padding.top} 
-                        x2={xScale(hoveredIndex)} 
-                        y2={height - padding.bottom} 
-                        stroke="#70AD47" 
-                        strokeWidth="1" 
-                        strokeDasharray="4 2" 
-                    />
+                    <line x1={xScale(hoveredIndex)} y1={padding.top} x2={xScale(hoveredIndex)} y2={height - padding.bottom} stroke="#70AD47" strokeWidth="1" strokeDasharray="4 2" />
                 )}
-
-                {/* 趋势线 (维持 1.0px) */}
                 {selectedMetricsData.map(key => (
-                    <path
-                        key={key}
-                        d={`M ${dailyData.map((d, i) => `${xScale(i)},${yScale(d[key] || 0, key)}`).join(' L ')}`}
-                        fill="none"
-                        stroke={METRIC_COLORS[key]}
-                        strokeWidth="1.0"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="transition-opacity duration-300"
-                        style={{ opacity: hoveredIndex === null ? 1 : 0.8 }}
-                    />
+                    <path key={key} d={`M ${dailyData.map((d, i) => `${xScale(i)},${yScale(d[key] || 0, key)}`).join(' L ')}`} fill="none" stroke={METRIC_COLORS[key]} strokeWidth="1.0" strokeLinecap="round" strokeLinejoin="round" className="transition-opacity duration-300" style={{ opacity: hoveredIndex === null ? 1 : 0.8 }} />
                 ))}
-
-                {/* 悬停数据点突出显示 */}
                 {hoveredIndex !== null && selectedMetricsData.map(key => (
-                    <circle 
-                        key={key}
-                        cx={xScale(hoveredIndex)}
-                        cy={yScale(dailyData[hoveredIndex][key] || 0, key)}
-                        r="2.5"
-                        fill="white"
-                        stroke={METRIC_COLORS[key]}
-                        strokeWidth="1.5"
-                    />
+                    <circle key={key} cx={xScale(hoveredIndex)} cy={yScale(dailyData[hoveredIndex][key] || 0, key)} r="2.5" fill="white" stroke={METRIC_COLORS[key]} strokeWidth="1.5" />
                 ))}
             </svg>
-
-            {/* 动态悬浮窗 Tooltip */}
             {hoveredIndex !== null && (
-                <div 
-                    className="absolute z-50 pointer-events-none bg-white/95 backdrop-blur-sm border border-slate-200 shadow-xl rounded-xl p-3 w-40 animate-fadeIn"
-                    style={{ left: tooltipPos.x, top: tooltipPos.y }}
-                >
+                <div className="absolute z-50 pointer-events-none bg-white/95 backdrop-blur-sm border border-slate-200 shadow-xl rounded-xl p-3 w-40 animate-fadeIn" style={{ left: tooltipPos.x, top: tooltipPos.y }}>
                     <p className="text-[10px] font-black text-slate-400 mb-2 border-b border-slate-100 pb-1">{dailyData[hoveredIndex].date}</p>
                     <div className="space-y-1.5">
                         {selectedMetricsData.map(key => (
                             <div key={key} className="flex justify-between items-center gap-2">
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: METRIC_COLORS[key] }}></div>
-                                    <span className="text-[10px] font-bold text-slate-500 truncate max-w-[60px]">{metricsMap.get(key)?.label}</span>
-                                </div>
-                                <span className="text-[11px] font-black text-slate-800 tabular-nums">
-                                    {formatMetricValue(dailyData[hoveredIndex][key] || 0, key)}
-                                </span>
+                                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: METRIC_COLORS[key] }}></div><span className="text-[10px] font-bold text-slate-500 truncate max-w-[60px]">{metricsMap.get(key)?.label}</span></div>
+                                <span className="text-[11px] font-black text-slate-800 tabular-nums">{formatMetricValue(dailyData[hoveredIndex][key] || 0, key)}</span>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
-
             <div className="mt-2 text-center text-[8px] text-slate-300 font-black italic tracking-tighter">* 各指标线条已归一化，粗细 1.0px；移动鼠标查看数值</div>
         </div>
     );
 };
 
-const getInitialDates = () => {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 6);
-    return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0],
-    };
-};
-
 export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, schemas }: MultiQueryViewProps) => {
-    const [startDate, setStartDate] = useState(getInitialDates().startDate);
-    const [endDate, setEndDate] = useState(getInitialDates().endDate);
+    const [startDate, setStartDate] = useState(new Date(Date.now() - 6*86400000).toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     const [timeDimension, setTimeDimension] = useState('day');
     const [selectedShopId, setSelectedShopId] = useState('all');
     const [skuInput, setSkuInput] = useState('');
@@ -263,172 +196,110 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const [visualisationData, setVisualisationData] = useState<any>(null);
     const [comparisonType, setComparisonType] = useState<'period' | 'year'>('period');
     
-    // 看板展示指标 (调整排序与内容)
-    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
-    
-    // 默认图表勾选
+    const VISUAL_METRICS = ['pv', 'uv', 'paid_users', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
     const [chartMetrics, setChartMetrics] = useState<Set<string>>(new Set(['uv', 'paid_items', 'cost']));
-    
     const ROWS_PER_PAGE = 50;
     
     const handleReset = () => {
-        setStartDate(getInitialDates().startDate);
-        setEndDate(getInitialDates().endDate);
+        setStartDate(new Date(Date.now() - 6*86400000).toISOString().split('T')[0]);
+        setEndDate(new Date().toISOString().split('T')[0]);
         setTimeDimension('day');
         setSelectedShopId('all');
         setSkuInput('');
         setSelectedMetrics(['pv', 'uv', 'paid_users', 'paid_items', 'paid_amount', 'cost', 'cpc', 'roi']);
         setQueryResult([]);
         setVisualisationData(null);
-        setCurrentPage(1);
     };
 
     const handleQuery = () => {
         if (!startDate || !endDate) return;
         setIsLoading(true);
         setCurrentPage(1);
-        setVisualisationData(null);
-        
         setTimeout(() => {
             const managedSkuCodes = skus.length > 0 ? new Set(skus.map(s => s.code)) : null;
             const parsedSkus = skuInput.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
             const skuCodeToInfoMap = new Map(skus.map((s: ProductSKU) => [s.code, s]));
 
             const getDataForPeriod = (start: string, end: string) => {
-                 const filteredShangzhi = (shangzhiData || []).filter((row: any) => {
+                const filterFunc = (row: any) => {
                     const skuCode = getSkuIdentifier(row);
                     if (!row.date || !skuCode) return false;
                     if (managedSkuCodes && !managedSkuCodes.has(skuCode)) return false;
                     if (start && row.date < start) return false;
                     if (end && row.date > end) return false;
                     if (parsedSkus.length > 0 && !parsedSkus.includes(skuCode)) return false;
-                    if (selectedShopId !== 'all') {
-                        const skuInfo = skuCodeToInfoMap.get(skuCode);
-                        if (skuInfo?.shopId !== selectedShopId) return false;
-                    }
+                    if (selectedShopId !== 'all' && skuCodeToInfoMap.get(skuCode)?.shopId !== selectedShopId) return false;
                     return true;
-                });
+                };
+                const fSz = (shangzhiData || []).filter(filterFunc);
+                const fJzt = (jingzhuntongData || []).filter(filterFunc);
+                const merged = new Map<string, any>();
+                const mAgg = new Set([...selectedMetrics, ...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']);
 
-                const filteredJingzhuntong = (jingzhuntongData || []).filter((row: any) => {
-                    const skuCode = getSkuIdentifier(row);
-                    if (!row.date || !skuCode) return false;
-                    if (managedSkuCodes && !managedSkuCodes.has(skuCode)) return false;
-                    if (start && row.date < start) return false;
-                    if (end && row.date > end) return false;
-                    if (parsedSkus.length > 0 && !parsedSkus.includes(skuCode)) return false;
-                    if (selectedShopId !== 'all') {
-                        const skuInfo = skuCodeToInfoMap.get(skuCode);
-                        if (skuInfo?.shopId !== selectedShopId) return false;
-                    }
-                    return true;
-                });
-
-                const mergedData = new Map<string, any>();
-                const metricsToAggregate = new Set([...selectedMetrics, ...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']);
-
-                const getAggregationKey = (dateStr: string, skuCode: string) => {
-                    const d = new Date(dateStr);
-                    if (timeDimension === 'month') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${skuCode}`;
+                const getAggregationKey = (dStr: string, sCode: string) => {
+                    const d = new Date(dStr);
+                    if (timeDimension === 'month') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${sCode}`;
                     if (timeDimension === 'week') {
-                        const date = new Date(dateStr);
-                        const day = date.getDay() || 7;
-                        date.setUTCDate(date.getUTCDate() - day + 1);
-                        return `${date.toISOString().split('T')[0]}-${skuCode}`;
+                        const date = new Date(dStr);
+                        date.setUTCDate(date.getUTCDate() - (date.getDay() || 7) + 1);
+                        return `${date.toISOString().split('T')[0]}-${sCode}`;
                     }
-                    return `${dateStr}-${skuCode}`;
+                    return `${dStr}-${sCode}`;
                 };
 
-                const processRow = (row: any) => {
-                    const skuCode = getSkuIdentifier(row)!;
-                    const key = getAggregationKey(row.date, skuCode);
-                    if (!mergedData.has(key)) {
-                        const skuInfo = skuCodeToInfoMap.get(skuCode);
-                        const shopInfo = shops.find(s => s.id === skuInfo?.shopId);
-                        let displayDate = row.date;
-                        if (timeDimension === 'month') displayDate = row.date.substring(0, 7);
-                        else if (timeDimension === 'week') displayDate = key.split('-').slice(0,3).join('-');
-
-                        mergedData.set(key, { 
-                            date: displayDate,
-                            sku_code: skuCode,
-                            sku_shop: { code: skuCode, shopName: shopInfo?.name || row.shop_name || row.account_nickname || '默认店铺' },
-                        });
+                const proc = (row: any) => {
+                    const sCode = getSkuIdentifier(row)!;
+                    const key = getAggregationKey(row.date, sCode);
+                    if (!merged.has(key)) {
+                        const sInfo = skuCodeToInfoMap.get(sCode);
+                        const shopInfo = shops.find(s => s.id === sInfo?.shopId);
+                        merged.set(key, { date: row.date, sku_code: sCode, sku_shop: { code: sCode, shopName: shopInfo?.name || row.shop_name || '默认店铺' } });
                     }
-                    const entry = mergedData.get(key)!;
-                    for (const metric of metricsToAggregate) {
-                        if (row[metric] !== undefined && row[metric] !== null) entry[metric] = (entry[metric] || 0) + Number(row[metric]);
-                    }
+                    const ent = merged.get(key)!;
+                    mAgg.forEach(m => { if (row[m] != null) ent[m] = (ent[m] || 0) + Number(row[m]); });
                 };
-
-                filteredShangzhi.forEach(processRow);
-                filteredJingzhuntong.forEach(processRow);
-
-                return Array.from(mergedData.values());
+                fSz.forEach(proc); fJzt.forEach(proc);
+                return Array.from(merged.values());
             };
 
-            const mainPeriodData = getDataForPeriod(startDate, endDate);
-            const mainStart = new Date(startDate);
-            const mainEnd = new Date(endDate);
-            const diffDays = (mainEnd.getTime() - mainStart.getTime()) / (1000 * 3600 * 24);
-            
+            const mainData = getDataForPeriod(startDate, endDate);
+            const mainStart = new Date(startDate); const mainEnd = new Date(endDate);
+            const diffDays = (mainEnd.getTime() - mainStart.getTime()) / 86400000;
             let compStart: Date, compEnd: Date;
             if (comparisonType === 'period') {
-                compEnd = new Date(mainStart);
-                compEnd.setDate(compEnd.getDate() - 1);
-                compStart = new Date(compEnd);
-                compStart.setDate(compStart.getDate() - diffDays);
-            } else { 
-                compStart = new Date(mainStart);
-                compStart.setFullYear(compStart.getFullYear() - 1);
-                compEnd = new Date(mainEnd);
-                compEnd.setFullYear(compEnd.getFullYear() - 1);
+                compEnd = new Date(mainStart); compEnd.setDate(compEnd.getDate() - 1);
+                compStart = new Date(compEnd); compStart.setDate(compStart.getDate() - diffDays);
+            } else {
+                compStart = new Date(mainStart); compStart.setFullYear(compStart.getFullYear() - 1);
+                compEnd = new Date(mainEnd); compEnd.setFullYear(compEnd.getFullYear() - 1);
             }
-
-            const compPeriodData = getDataForPeriod(compStart.toISOString().split('T')[0], compEnd.toISOString().split('T')[0]);
-            
-            const calculateTotals = (data: any[]) => {
-                const totals = data.reduce((acc, row) => {
-                    for(const key of [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']) {
-                        acc[key] = (acc[key] || 0) + (Number(row[key]) || 0);
-                    }
+            const compData = getDataForPeriod(compStart.toISOString().split('T')[0], compEnd.toISOString().split('T')[0]);
+            const calcTotals = (data: any[]) => {
+                const t = data.reduce((acc, row) => {
+                    [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount'].forEach(k => { acc[k] = (acc[k] || 0) + (Number(row[k]) || 0); });
                     return acc;
                 }, {} as Record<string, number>);
-                
-                totals.cpc = totals.clicks ? totals.cost / totals.clicks : 0;
-                totals.roi = totals.cost ? (totals.total_order_amount || totals.paid_amount || 0) / totals.cost : 0;
-                totals.paid_conversion_rate = totals.uv ? totals.paid_users / totals.uv : 0;
-                return totals;
+                t.cpc = t.clicks ? t.cost / t.clicks : 0;
+                t.roi = t.cost ? (t.total_order_amount || t.paid_amount || 0) / t.cost : 0;
+                t.paid_conversion_rate = t.uv ? t.paid_users / t.uv : 0;
+                return t;
             };
 
-            const mainTotals = calculateTotals(mainPeriodData);
-            const compTotals = calculateTotals(compPeriodData);
-
-            const dailyDataMap = new Map<string, any>();
-            mainPeriodData.forEach(row => {
-                if (!dailyDataMap.has(row.date)) dailyDataMap.set(row.date, { date: row.date });
-                const entry = dailyDataMap.get(row.date);
-                for(const key of [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']) {
-                    entry[key] = (entry[key] || 0) + (Number(row[key]) || 0);
-                }
+            const dMap = new Map<string, any>();
+            mainData.forEach(r => {
+                if (!dMap.has(r.date)) dMap.set(r.date, { date: r.date });
+                const ent = dMap.get(r.date);
+                [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount'].forEach(k => { ent[k] = (ent[k] || 0) + (Number(r[k]) || 0); });
             });
-            const dailyData = Array.from(dailyDataMap.values()).sort((a,b) => a.date.localeCompare(b.date));
-            dailyData.forEach(d => {
+            const dData = Array.from(dMap.values()).sort((a,b) => a.date.localeCompare(b.date));
+            dData.forEach(d => {
                 d.cpc = d.clicks ? d.cost / d.clicks : 0;
                 d.roi = d.cost ? (d.total_order_amount || d.paid_amount || 0) / d.cost : 0;
                 d.paid_conversion_rate = d.uv ? d.paid_users / d.uv : 0;
             });
             
-            setVisualisationData({ mainTotals, compTotals, dailyData });
-
-            const result = mainPeriodData.sort((a, b) => b.date.localeCompare(a.date) || a.sku_code.localeCompare(b.sku_code));
-            result.forEach(row => {
-                const cost = row.cost || 0;
-                const clicks = row.clicks || 0;
-                const totalOrderAmount = row.total_order_amount || row.paid_amount || 0;
-                row.cpc = clicks > 0 ? cost / clicks : 0;
-                row.roi = cost > 0 ? totalOrderAmount / cost : 0;
-            });
-            setQueryResult(result);
+            setVisualisationData({ mainTotals: calcTotals(mainData), compTotals: calcTotals(compData), dailyData: dData });
+            setQueryResult(mainData.sort((a,b) => b.date.localeCompare(a.date)));
             setIsLoading(false);
         }, 500);
     };
@@ -438,75 +309,35 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
         [...schemas.shangzhi, ...schemas.jingzhuntong].forEach(f => map.set(f.key, f));
         map.set('date', { key: 'date', label: '时间范围', type: 'TIMESTAMP' });
         map.set('sku_shop', { key: 'sku_shop', label: 'SKU / 店铺', type: 'STRING' });
-        
-        map.set('pv', { ...(map.get('pv') || {key: 'pv', label:'浏览量', type:'INTEGER'}), label: '浏览量' });
-        map.set('uv', { ...(map.get('uv') || {key: 'uv', label:'访客数', type:'INTEGER'}), label: '访客数' });
-        map.set('paid_items', { ...(map.get('paid_items') || {key: 'paid_items', label:'CA', type:'INTEGER'}), label: '成交件数' });
-        map.set('paid_amount', { ...(map.get('paid_amount') || {key: 'paid_amount', label:'GMV', type:'REAL'}), label: '成交金额' });
+        map.set('pv', { key: 'pv', label: '浏览量', type: 'INTEGER' });
+        map.set('uv', { key: 'uv', label: '访客数', type: 'INTEGER' });
+        map.set('paid_users', { key: 'paid_users', label: '成交人数', type: 'INTEGER' });
+        map.set('paid_items', { key: 'paid_items', label: '成交件数', type: 'INTEGER' });
+        map.set('paid_amount', { key: 'paid_amount', label: '成交金额', type: 'REAL' });
         map.set('paid_conversion_rate', { key: 'paid_conversion_rate', label: '成交转化率', type: 'REAL' });
-        map.set('cost', { ...(map.get('cost') || {key: 'cost', label:'花费', type:'REAL'}), label: '广告花费' });
-        
+        map.set('cost', { key: 'cost', label: '广告花费', type: 'REAL' });
         map.set('cpc', { key: 'cpc', label: 'CPC', type: 'REAL' });
         map.set('roi', { key: 'roi', label: 'ROI', type: 'REAL' });
-        
-        const shangzhiMetrics = schemas.shangzhi.filter(f => !['date', 'product_name', 'sku_code', 'brand', 'category_l1', 'category_l2', 'category_l3', 'shop_name', 'business_mode', 'product_id', 'item_number', 'last_listed_at'].includes(f.key));
-        const jingzhuntongMetrics = schemas.jingzhuntong.filter(f => !['date', 'account_nickname', 'tracked_sku_id', 'tracked_sku_name'].includes(f.key));
-        
         return { 
-            shangzhiMetricsForModal: shangzhiMetrics, 
-            jingzhuntongMetricsForModal: jingzhuntongMetrics, 
+            shangzhiMetricsForModal: schemas.shangzhi.filter(f => !['date', 'sku_code', 'product_name'].includes(f.key)), 
+            jingzhuntongMetricsForModal: schemas.jingzhuntong.filter(f => !['date'].includes(f.key)), 
             allMetricsMap: map 
         };
     }, [schemas]);
 
     const resultHeaders = ['date', 'sku_shop', ...selectedMetrics];
-
-    const handleExport = () => {
-        if (queryResult.length === 0) return;
-        const headers = resultHeaders.map(key => allMetricsMap.get(key)?.label || key);
-        const dataToExport = queryResult.map(row => {
-            return resultHeaders.map(key => {
-                const value = row[key];
-                if (key === 'sku_shop') return `${value.code} (${value.shopName})`;
-                if (value === undefined || value === null) return '';
-                return value;
-            });
-        });
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...dataToExport]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "数据聚合报表");
-        XLSX.writeFile(wb, `聚合查询_${new Date().toISOString().slice(0,10)}.xlsx`);
-    };
-
     const totalPages = Math.ceil(queryResult.length / ROWS_PER_PAGE);
     const paginatedResult = queryResult.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
-    const isDataLoaded = (shangzhiData?.length || 0) > 0 || (jingzhuntongData?.length || 0) > 0;
 
     return (
         <>
-            <MetricSelectionModal 
-                isOpen={isMetricModalOpen}
-                onClose={() => setIsMetricModalOpen(false)}
-                shangzhiMetrics={shangzhiMetricsForModal}
-                jingzhuntongMetrics={jingzhuntongMetricsForModal}
-                selectedMetrics={selectedMetrics}
-                onConfirm={(newMetrics: string[]) => {
-                    setSelectedMetrics(newMetrics);
-                    setIsMetricModalOpen(false);
-                }}
-            />
+            <MetricSelectionModal isOpen={isMetricModalOpen} onClose={() => setIsMetricModalOpen(false)} shangzhiMetrics={shangzhiMetricsForModal} jingzhuntongMetrics={jingzhuntongMetricsForModal} selectedMetrics={selectedMetrics} onConfirm={(m: string[]) => { setSelectedMetrics(m); setIsMetricModalOpen(false); }} />
             <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
                 <div className="mb-6 flex items-center justify-between">
                    <div>
                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">多维数据查询</h1>
                        <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Comprehensive Data Aggregator</p>
                    </div>
-                   {!isDataLoaded && (
-                       <div className="flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-2 rounded-xl border border-amber-100 animate-pulse">
-                           <AlertCircle size={16} />
-                           <span className="text-xs font-black">警告：物理库中暂无同步数据，请先前往「数据中心」上传表格。</span>
-                       </div>
-                   )}
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
@@ -514,52 +345,35 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                         <div className="space-y-1">
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">选择时间段</label>
                             <div className="flex items-center gap-2">
-                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]" />
+                                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:border-[#70AD47] outline-none" />
                                 <span className="text-slate-300">-</span>
-                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]" />
+                                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:border-[#70AD47] outline-none" />
                             </div>
                         </div>
                         <div className="space-y-1">
                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">时间维度</label>
-                             <select value={timeDimension} onChange={e => setTimeDimension(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]">
-                                 <option value="day">按天汇总</option>
-                                 <option value="week">按周汇总</option>
-                                 <option value="month">按月汇总</option>
+                             <select value={timeDimension} onChange={e => setTimeDimension(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:border-[#70AD47] outline-none">
+                                 <option value="day">按天汇总</option><option value="week">按周汇总</option><option value="month">按月汇总</option>
                              </select>
                         </div>
                         <div className="space-y-1">
                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">限定店铺</label>
-                             <select value={selectedShopId} onChange={e => setSelectedShopId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]">
-                                 <option value="all">所有店铺</option>
-                                 {shops.map((s: Shop) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                             <select value={selectedShopId} onChange={e => setSelectedShopId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 focus:border-[#70AD47] outline-none">
+                                 <option value="all">所有店铺</option>{shops.map((s: Shop) => <option key={s.id} value={s.id}>{s.name}</option>)}
                              </select>
                         </div>
                         <div className="space-y-1">
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">指标筛选</label>
-                            <button onClick={() => setIsMetricModalOpen(true)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors">
-                                <span className="font-bold text-sm">{selectedMetrics.length} 个指标已选</span>
-                                <ChevronDown size={16} className="text-slate-400" />
+                            <button onClick={() => setIsMetricModalOpen(true)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 flex items-center justify-between hover:bg-slate-100 transition-colors">
+                                <span className="font-bold text-sm">{selectedMetrics.length} 个指标已选</span><ChevronDown size={16} className="text-slate-400" />
                             </button>
                         </div>
                     </div>
-
                     <div className="flex items-end gap-4">
-                        <div className="flex-1 space-y-1">
-                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU 精准过滤 (支持模糊匹配)</label>
-                             <textarea 
-                                placeholder="输入SKU，以逗号或换行分隔。留空则代表统计范围内全量资产。" 
-                                value={skuInput}
-                                onChange={e => setSkuInput(e.target.value)}
-                                className="w-full h-24 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none"
-                             ></textarea>
-                        </div>
+                        <textarea placeholder="输入SKU编码，以逗号或换行分隔..." value={skuInput} onChange={e => setSkuInput(e.target.value)} className="flex-1 h-24 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 focus:border-[#70AD47] outline-none resize-none" />
                         <div className="flex gap-4 pb-1">
-                            <button onClick={handleReset} className="px-8 py-3 rounded-lg border border-slate-200 text-slate-600 font-black text-xs hover:bg-slate-50 transition-colors uppercase tracking-widest">重置</button>
-                            <button 
-                                onClick={handleQuery} 
-                                disabled={isLoading} 
-                                className="px-10 py-3 rounded-lg bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 flex items-center gap-2 transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none disabled:cursor-not-allowed uppercase tracking-widest"
-                            >
+                            <button onClick={handleReset} className="px-8 py-3 rounded-lg border border-slate-200 text-slate-600 font-black text-xs hover:bg-slate-50 uppercase">重置</button>
+                            <button onClick={handleQuery} disabled={isLoading} className="px-10 py-3 rounded-lg bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 flex items-center gap-2 transition-all active:scale-95 disabled:bg-slate-200 uppercase">
                                 {isLoading ? '正在穿透计算...' : <><Zap size={14} className="fill-white" /> 执行聚合查询</>}
                             </button>
                         </div>
@@ -570,133 +384,71 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                     <div className="flex justify-between items-center mb-8">
                         <h3 className="font-black text-slate-800 flex items-center gap-2"><TrendingUp size={20} className="text-[#70AD47]"/> 核心业务看板</h3>
                         <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-                            <button onClick={() => setComparisonType('period')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${comparisonType === 'period' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-400'}`}>环比前一周期</button>
-                            <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-400'}`}>同比去年同期</button>
+                            <button onClick={() => setComparisonType('period')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${comparisonType === 'period' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>环比前一周期</button>
+                            <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>同比去年同期</button>
                         </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-10">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3 mb-10">
                         {VISUAL_METRICS.map(key => {
-                            const metricLabel = allMetricsMap.get(key)?.label || key;
-                            const metricColor = METRIC_COLORS[key] || '#94a3b8';
-
-                            if (!visualisationData) {
-                                return (
-                                    <div key={key} className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100 group">
-                                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer truncate">
-                                            <input type="checkbox" checked={chartMetrics.has(key)} onChange={() => setChartMetrics(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;})} className="form-checkbox h-3 w-3 bg-transparent border-slate-300 rounded-sm text-[#70AD47] focus:ring-0" />
-                                            {metricLabel}
-                                        </label>
-                                        <p className="text-xl font-black mt-2 text-slate-200">-</p>
-                                    </div>
-                                );
-                            }
-                            
-                            const mainValue = visualisationData.mainTotals[key] || 0;
-                            const compValue = visualisationData.compTotals[key] || 0;
-                            const change = getChange(mainValue, compValue);
-                            
-                            const isGrowth = change > 0;
-                            const isDecline = change < 0;
-                            const cardBg = isGrowth ? 'bg-rose-200/60' : isDecline ? 'bg-green-200/60' : 'bg-white';
-                            const cardBorder = isGrowth ? 'border-rose-300' : isDecline ? 'border-green-300' : 'border-slate-100';
-                            const changeTextColor = isGrowth ? 'text-rose-700' : isDecline ? 'text-green-800' : 'text-slate-400';
-
+                            const label = allMetricsMap.get(key)?.label || key;
+                            const color = METRIC_COLORS[key] || '#94a3b8';
+                            if (!visualisationData) return <div key={key} className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100 h-28 flex flex-col justify-center items-center"><p className="text-[10px] font-black text-slate-300 uppercase">{label}</p><p className="text-xl font-black text-slate-100">-</p></div>;
+                            const main = visualisationData.mainTotals[key] || 0;
+                            const comp = visualisationData.compTotals[key] || 0;
+                            const chg = getChange(main, comp);
+                            const isG = chg > 0; const isD = chg < 0;
+                            const bg = isG ? 'bg-rose-200/60' : isD ? 'bg-green-200/60' : 'bg-white';
+                            const brd = isG ? 'border-rose-300' : isD ? 'border-green-300' : 'border-slate-100';
+                            const txt = isG ? 'text-rose-700' : isD ? 'text-green-800' : 'text-slate-400';
                             return (
-                                <div 
-                                    key={key} 
-                                    style={{ borderColor: chartMetrics.has(key) ? metricColor : '' }} 
-                                    className={`p-4 rounded-2xl ${cardBg} border ${cardBorder} shadow-sm group hover:border-slate-400 transition-all`}
-                                >
-                                    <label style={{ color: metricColor }} className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer truncate drop-shadow-sm`}>
-                                        <input 
-                                            type="checkbox" 
-                                            checked={chartMetrics.has(key)} 
-                                            onChange={() => setChartMetrics(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n;})} 
-                                            style={{ color: metricColor }}
-                                            className={`form-checkbox h-3 w-3 bg-transparent border-slate-300 rounded-sm focus:ring-0`}
-                                        />
-                                        {metricLabel}
+                                <div key={key} style={{ borderColor: chartMetrics.has(key) ? color : '' }} className={`p-4 rounded-2xl ${bg} border ${brd} shadow-sm transition-all group`}>
+                                    <label style={{ color: color }} className="flex items-center gap-2 text-[10px] font-black uppercase cursor-pointer truncate">
+                                        <input type="checkbox" checked={chartMetrics.has(key)} onChange={() => setChartMetrics(p => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; })} className="form-checkbox h-3 w-3 bg-transparent border-slate-300 rounded-sm focus:ring-0" /> {label}
                                     </label>
-                                    <p className="text-xl font-black mt-2 text-slate-900 truncate">{formatMetricValue(mainValue, key)}</p>
-                                    <div className={`flex justify-between items-center mt-2 pt-2 border-t ${isGrowth ? 'border-rose-300/50' : isDecline ? 'border-green-300/50' : 'border-slate-100'} text-sm font-black`}>
-                                        {isFinite(change) && (
-                                            <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${changeTextColor}`}>
-                                                {isGrowth ? <ArrowUp size={12} strokeWidth={4} /> : isDecline ? <ArrowDown size={12} strokeWidth={4} /> : null}
-                                                {Math.abs(change).toFixed(0)}%
-                                            </span>
-                                        )}
+                                    <p className="text-lg font-black mt-2 text-slate-900 truncate">{formatMetricValue(main, key)}</p>
+                                    <div className={`flex justify-between items-center mt-2 pt-2 border-t ${isG ? 'border-rose-300/50' : isD ? 'border-green-300/50' : 'border-slate-100'} text-[10px] font-black`}>
+                                        {isFinite(chg) && <span className={`${txt} flex items-center`}>{isG ? <ArrowUp size={10} strokeWidth={4} /> : isD ? <ArrowDown size={10} strokeWidth={4} /> : null}{Math.abs(chg).toFixed(0)}%</span>}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                    {visualisationData?.dailyData ? (
-                        <div className="bg-slate-50/30 p-4 rounded-2xl border border-slate-100 overflow-visible">
-                             <TrendChart dailyData={visualisationData.dailyData} chartMetrics={chartMetrics} metricsMap={allMetricsMap} />
-                        </div>
-                    ) : (
-                        <div className="h-[150px] flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-50 rounded-2xl">
-                             <TrendingUp size={32} className="mb-2 opacity-10" />
-                             <p className="font-black text-[10px] uppercase tracking-widest">请点击按钮执行查询以渲染趋势分析</p>
-                        </div>
-                    )}
+                    {visualisationData ? <div className="bg-slate-50/30 p-4 rounded-2xl border border-slate-100"><TrendChart dailyData={visualisationData.dailyData} chartMetrics={chartMetrics} metricsMap={allMetricsMap} /></div> : null}
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 min-h-[400px]">
                     <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
-                        <div className="flex items-center gap-3">
-                            <BarChart3 size={20} className="text-[#70AD47]" />
-                            <span className="font-black text-slate-800 uppercase tracking-widest">查询结果明细集 (已聚合)</span>
-                        </div>
-                        <button 
-                            onClick={handleExport} 
-                            disabled={queryResult.length === 0} 
-                            className="flex items-center gap-2 px-6 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all disabled:opacity-30 disabled:shadow-none"
-                        >
-                            <Download size={14} /> 导出 EXCEL 报表
-                        </button>
+                        <div className="flex items-center gap-3"><BarChart3 size={20} className="text-[#70AD47]" /><span className="font-black text-slate-800 uppercase tracking-widest">查询结果明细集 (已聚合)</span></div>
+                        <button onClick={() => {}} className="flex items-center gap-2 px-6 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 导出 EXCEL 报表</button>
                     </div>
-                    <div className="p-4 overflow-hidden">
+                    <div className="p-4">
                         <div className="overflow-x-auto rounded-xl border border-slate-100">
-                            <table className="w-full text-left text-sm whitespace-nowrap table-fixed border-collapse">
+                            <table className="w-full text-sm table-fixed border-collapse">
                                 <thead>
                                     <tr className="bg-slate-100/50 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                                         {resultHeaders.map(key => (
-                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${key === 'sku_shop' ? 'w-[300px]' : 'w-[120px]'}`}>{allMetricsMap.get(key)?.label || key}</th>
+                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${key === 'sku_shop' ? 'w-[300px]' : key === 'date' ? 'w-[180px]' : 'w-[150px]'}`}>{allMetricsMap.get(key)?.label || key}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {isLoading ? (
-                                         <tr><td colSpan={resultHeaders.length} className="py-32 text-center text-slate-400 font-black animate-pulse">正在处理海量流水聚合中...</td></tr>
+                                         <tr><td colSpan={resultHeaders.length} className="py-32 text-center text-slate-400 font-black animate-pulse">正在处理聚合中...</td></tr>
                                     ) : queryResult.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={resultHeaders.length} className="py-40 text-center">
-                                                <div className="flex flex-col items-center justify-center text-slate-300">
-                                                     <Zap size={64} className="mb-6 opacity-10" />
-                                                     <p className="font-black text-sm uppercase tracking-widest text-slate-400">准备就绪，点击上方按钮开始查询</p>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        <tr><td colSpan={resultHeaders.length} className="py-40 text-center text-slate-300 font-black text-sm uppercase tracking-widest">点击按钮开始查询</td></tr>
                                     ) : (
                                         paginatedResult.map((row, idx) => (
                                             <tr key={idx} className="hover:bg-slate-100/50 transition-colors group">
                                                 {resultHeaders.map(key => (
-                                                    <td key={key} className={`py-4 px-10 text-xs text-slate-600 truncate font-mono text-left`}>
+                                                    <td key={key} className={`py-4 pr-8 text-xs text-slate-600 truncate font-mono text-right`}>
                                                         {key === 'sku_shop' ? (
-                                                            <div className="truncate">
+                                                            <div className="truncate text-left pl-4">
                                                                 <div className="font-black text-slate-800 truncate" title={row.sku_shop.code}>{row.sku_shop.code}</div>
                                                                 <div className="text-[10px] text-slate-400 font-bold mt-1 truncate">{row.sku_shop.shopName}</div>
                                                             </div>
-                                                        ) : (row[key] === undefined || row[key] === null) ? '-' : typeof row[key] === 'number' ? 
-                                                            (
-                                                                key === 'paid_amount' ? `¥${Math.round(row[key]).toLocaleString()}` :
-                                                                key === 'cost' ? `¥${Math.round(row[key]).toLocaleString()}` :
-                                                                ['cpc', 'roi'].includes(key) ? row[key].toFixed(1) : 
-                                                                key === 'paid_conversion_rate' ? `${(row[key]*100).toFixed(2)}%` :
-                                                                Math.round(row[key]).toLocaleString()
-                                                            ) : row[key]}
+                                                        ) : key === 'date' ? (
+                                                            <span className="font-black text-slate-500 pr-4">{row.date}</span>
+                                                        ) : (row[key] == null) ? '-' : typeof row[key] === 'number' ? formatMetricValue(row[key], key) : row[key]}
                                                     </td>
                                                 ))}
                                             </tr>
@@ -705,26 +457,12 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                 </tbody>
                             </table>
                         </div>
-                         {queryResult.length > 0 && (
+                        {queryResult.length > 0 && (
                             <div className="flex justify-between items-center pt-6 px-4">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                    共匹配 {queryResult.length} 条数据 / 第 {currentPage} - {totalPages} 页
-                                </span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase">共 {queryResult.length} 条数据 / 第 {currentPage} - {totalPages} 页</span>
                                 <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                        disabled={currentPage === 1}
-                                        className="px-6 py-2 rounded-lg border border-slate-200 text-slate-600 font-black text-[10px] hover:bg-slate-50 disabled:opacity-30 uppercase transition-all"
-                                    >
-                                        上一页
-                                    </button>
-                                    <button
-                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                        disabled={currentPage === totalPages}
-                                        className="px-6 py-2 rounded-lg border border-slate-200 text-slate-600 font-black text-[10px] hover:bg-slate-50 disabled:opacity-30 uppercase transition-all"
-                                    >
-                                        下一页
-                                    </button>
+                                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-6 py-2 rounded-lg border border-slate-200 text-slate-600 font-black text-[10px] hover:bg-slate-50 disabled:opacity-30 uppercase transition-all">上一页</button>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-6 py-2 rounded-lg border border-slate-200 text-slate-600 font-black text-[10px] hover:bg-slate-50 disabled:opacity-30 uppercase transition-all">下一页</button>
                                 </div>
                             </div>
                         )}
