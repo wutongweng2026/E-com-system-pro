@@ -103,11 +103,6 @@ const getChange = (current: number, previous: number) => {
     return ((current - previous) / previous) * 100;
 };
 
-const isChangePositive = (key: string, change: number) => {
-    if (key === 'cost' || key === 'cpc') return change < 0; 
-    return change > 0;
-};
-
 // 趋势图组件 (支持色彩同步与动态 Tooltip)
 const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[], chartMetrics: Set<string>, metricsMap: Map<string, any> }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -119,7 +114,7 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
     }
 
     const width = 800;
-    const height = 125; // 高度缩短一半 (250 -> 125)
+    const height = 125; 
     const padding = { top: 20, right: 20, bottom: 25, left: 40 };
 
     const selectedMetricsData = Array.from(chartMetrics);
@@ -145,7 +140,6 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
         
         if (index >= 0 && index < dailyData.length) {
             setHoveredIndex(index);
-            // Tooltip 浮层位置计算（防止溢出右边界）
             const tooltipX = e.clientX - rect.left > rect.width / 2 ? e.clientX - rect.left - 180 : e.clientX - rect.left + 20;
             setTooltipPos({ x: tooltipX, y: e.clientY - rect.top });
         }
@@ -187,14 +181,14 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                     />
                 )}
 
-                {/* 趋势线 */}
+                {/* 趋势线 (宽度减少 60% -> strokeWidth="1.0") */}
                 {selectedMetricsData.map(key => (
                     <path
                         key={key}
                         d={`M ${dailyData.map((d, i) => `${xScale(i)},${yScale(d[key] || 0, key)}`).join(' L ')}`}
                         fill="none"
                         stroke={METRIC_COLORS[key]}
-                        strokeWidth="2.5"
+                        strokeWidth="1.0"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="transition-opacity duration-300"
@@ -202,16 +196,16 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                     />
                 ))}
 
-                {/* 悬停数据点突出显示 */}
+                {/* 悬停数据点突出显示 (同步缩小) */}
                 {hoveredIndex !== null && selectedMetricsData.map(key => (
                     <circle 
                         key={key}
                         cx={xScale(hoveredIndex)}
                         cy={yScale(dailyData[hoveredIndex][key] || 0, key)}
-                        r="3"
+                        r="2.5"
                         fill="white"
                         stroke={METRIC_COLORS[key]}
-                        strokeWidth="2"
+                        strokeWidth="1.5"
                     />
                 ))}
             </svg>
@@ -239,7 +233,7 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                 </div>
             )}
 
-            <div className="mt-2 text-center text-[9px] text-slate-400 font-bold italic">* 各指标线条已归一化，颜色与上方卡片同步；移动鼠标查看具体数值</div>
+            <div className="mt-2 text-center text-[9px] text-slate-400 font-bold italic">* 各指标线条已归一化，粗细 1.0px；移动鼠标查看具体数值</div>
         </div>
     );
 };
@@ -578,7 +572,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-400'}`}>同比去年同期</button>
                         </div>
                     </div>
-                    {/* 均等 8*1 布局调整 (grid-cols-2 md:grid-cols-4 -> lg:grid-cols-8) */}
+                    {/* 均等 8*1 布局调整 */}
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-10">
                         {VISUAL_METRICS.map(key => {
                             const metricLabel = allMetricsMap.get(key)?.label || key;
@@ -599,10 +593,20 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             const mainValue = visualisationData.mainTotals[key] || 0;
                             const compValue = visualisationData.compTotals[key] || 0;
                             const change = getChange(mainValue, compValue);
-                            const isPositive = isChangePositive(key, change);
+                            
+                            // 涨跌视觉定义 (增长=红涨，下降=绿跌)
+                            const isGrowth = change > 0;
+                            const isDecline = change < 0;
+                            const cardBg = isGrowth ? 'bg-rose-50/60' : isDecline ? 'bg-green-50/60' : 'bg-white';
+                            const cardBorder = isGrowth ? 'border-rose-100' : isDecline ? 'border-green-100' : 'border-slate-100';
+                            const changeTextColor = isGrowth ? 'text-rose-600' : isDecline ? 'text-green-600' : 'text-slate-400';
 
                             return (
-                                <div key={key} style={{ borderColor: chartMetrics.has(key) ? `${metricColor}30` : '' }} className={`p-4 rounded-2xl bg-white border border-slate-100 shadow-sm group hover:border-slate-200 transition-all`}>
+                                <div 
+                                    key={key} 
+                                    style={{ borderColor: chartMetrics.has(key) ? `${metricColor}50` : '' }} 
+                                    className={`p-4 rounded-2xl ${cardBg} border ${cardBorder} shadow-sm group hover:border-slate-200 transition-all`}
+                                >
                                     <label style={{ color: metricColor }} className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer truncate`}>
                                         <input 
                                             type="checkbox" 
@@ -614,10 +618,10 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                         {metricLabel}
                                     </label>
                                     <p className="text-xl font-black mt-2 text-slate-800 truncate">{formatMetricValue(mainValue, key)}</p>
-                                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-50 text-[9px] font-black">
+                                    <div className={`flex justify-between items-center mt-2 pt-2 border-t ${isGrowth ? 'border-rose-100/50' : isDecline ? 'border-green-100/50' : 'border-slate-50'} text-xs font-black`}>
                                         {isFinite(change) && (
-                                            <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${isPositive ? 'bg-green-50 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
-                                                {isPositive ? <ArrowUp size={8} /> : <ArrowDown size={8} />}
+                                            <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full ${changeTextColor}`}>
+                                                {isGrowth ? <ArrowUp size={10} strokeWidth={3} /> : isDecline ? <ArrowDown size={10} strokeWidth={3} /> : null}
                                                 {Math.abs(change).toFixed(0)}%
                                             </span>
                                         )}
