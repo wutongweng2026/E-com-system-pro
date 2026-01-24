@@ -22,10 +22,10 @@ const METRIC_COLORS: Record<string, string> = {
     'uv': '#06B6D4',                // 青色
     'paid_items': '#22C55E',         // 绿色
     'paid_amount': '#059669',        // 翠绿色
-    'cost': '#F43F5E',               // 玫瑰红
-    'cpc': '#F59E0B',               // 琥珀色
-    'roi': '#6366F1',               // 靛蓝色
-    'total_order_amount': '#8B5CF6' // 紫罗兰色
+    'paid_conversion_rate': '#F59E0B', // 橙黄色 (新增转化率)
+    'cost': '#F43F5E',               // 玫瑰红 (广告花费)
+    'cpc': '#6366F1',                // 靛蓝色
+    'roi': '#8B5CF6'                 // 紫罗兰色
 };
 
 const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMetrics, selectedMetrics, onConfirm }: any) => {
@@ -94,6 +94,7 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
 // 数值精度格式化工具
 const formatMetricValue = (value: number, key: string) => {
     if (key === 'roi' || key === 'cpc') return (value || 0).toFixed(1);
+    if (key === 'paid_conversion_rate') return `${(value * 100).toFixed(2)}%`;
     if (key.includes('amount') || key.includes('cost')) return `¥${(value || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     return Math.round(value || 0).toLocaleString();
 };
@@ -122,7 +123,7 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
     // 计算归一化基准
     const metricMaxMap = new Map<string, number>();
     selectedMetricsData.forEach(key => {
-        const max = Math.max(...dailyData.map(d => d[key] || 0), 0.1);
+        const max = Math.max(...dailyData.map(d => d[key] || 0), 0.0001);
         metricMaxMap.set(key, max);
     });
     
@@ -262,8 +263,10 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const [visualisationData, setVisualisationData] = useState<any>(null);
     const [comparisonType, setComparisonType] = useState<'period' | 'year'>('period');
     
-    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'cost', 'cpc', 'roi', 'total_order_amount'];
-    // 默认勾选 访客数、成交件数、消耗(花费)
+    // 看板展示指标 (调整排序与内容)
+    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
+    
+    // 默认图表勾选
     const [chartMetrics, setChartMetrics] = useState<Set<string>>(new Set(['uv', 'paid_items', 'cost']));
     
     const ROWS_PER_PAGE = 50;
@@ -321,13 +324,11 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                 });
 
                 const mergedData = new Map<string, any>();
-                const metricsToAggregate = new Set([...selectedMetrics, ...VISUAL_METRICS, 'clicks', 'total_order_amount']);
+                const metricsToAggregate = new Set([...selectedMetrics, ...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']);
 
                 const getAggregationKey = (dateStr: string, skuCode: string) => {
                     const d = new Date(dateStr);
-                    if (timeDimension === 'month') {
-                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${skuCode}`;
-                    }
+                    if (timeDimension === 'month') return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${skuCode}`;
                     if (timeDimension === 'week') {
                         const date = new Date(dateStr);
                         const day = date.getDay() || 7;
@@ -343,7 +344,6 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                     if (!mergedData.has(key)) {
                         const skuInfo = skuCodeToInfoMap.get(skuCode);
                         const shopInfo = shops.find(s => s.id === skuInfo?.shopId);
-                        
                         let displayDate = row.date;
                         if (timeDimension === 'month') displayDate = row.date.substring(0, 7);
                         else if (timeDimension === 'week') displayDate = key.split('-').slice(0,3).join('-');
@@ -388,7 +388,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
             
             const calculateTotals = (data: any[]) => {
                 const totals = data.reduce((acc, row) => {
-                    for(const key of [...VISUAL_METRICS, 'clicks']) {
+                    for(const key of [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']) {
                         acc[key] = (acc[key] || 0) + (Number(row[key]) || 0);
                     }
                     return acc;
@@ -396,6 +396,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                 
                 totals.cpc = totals.clicks ? totals.cost / totals.clicks : 0;
                 totals.roi = totals.cost ? (totals.total_order_amount || totals.paid_amount || 0) / totals.cost : 0;
+                totals.paid_conversion_rate = totals.uv ? totals.paid_users / totals.uv : 0;
                 return totals;
             };
 
@@ -406,7 +407,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
             mainPeriodData.forEach(row => {
                 if (!dailyDataMap.has(row.date)) dailyDataMap.set(row.date, { date: row.date });
                 const entry = dailyDataMap.get(row.date);
-                for(const key of [...VISUAL_METRICS, 'clicks']) {
+                for(const key of [...VISUAL_METRICS, 'clicks', 'paid_users', 'total_order_amount']) {
                     entry[key] = (entry[key] || 0) + (Number(row[key]) || 0);
                 }
             });
@@ -414,6 +415,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
             dailyData.forEach(d => {
                 d.cpc = d.clicks ? d.cost / d.clicks : 0;
                 d.roi = d.cost ? (d.total_order_amount || d.paid_amount || 0) / d.cost : 0;
+                d.paid_conversion_rate = d.uv ? d.paid_users / d.uv : 0;
             });
             
             setVisualisationData({ mainTotals, compTotals, dailyData });
@@ -441,9 +443,9 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
         map.set('uv', { ...(map.get('uv') || {key: 'uv', label:'访客数', type:'INTEGER'}), label: '访客数' });
         map.set('paid_items', { ...(map.get('paid_items') || {key: 'paid_items', label:'CA', type:'INTEGER'}), label: '成交件数' });
         map.set('paid_amount', { ...(map.get('paid_amount') || {key: 'paid_amount', label:'GMV', type:'REAL'}), label: '成交金额' });
-        map.set('cost', { ...(map.get('cost') || {key: 'cost', label:'花费', type:'REAL'}), label: '消耗' });
-        map.set('total_order_amount', { ...(map.get('total_order_amount') || {key:'total_order_amount', label:'总订单金额', type:'REAL'}), label: '总成交额' });
-
+        map.set('paid_conversion_rate', { key: 'paid_conversion_rate', label: '成交转化率', type: 'REAL' });
+        map.set('cost', { ...(map.get('cost') || {key: 'cost', label:'花费', type:'REAL'}), label: '广告花费' });
+        
         map.set('cpc', { key: 'cpc', label: 'CPC', type: 'REAL' });
         map.set('roi', { key: 'roi', label: 'ROI', type: 'REAL' });
         
@@ -572,7 +574,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm border border-slate-200/50' : 'text-slate-400'}`}>同比去年同期</button>
                         </div>
                     </div>
-                    {/* 均等 8*1 布局调整 */}
+                    
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-10">
                         {VISUAL_METRICS.map(key => {
                             const metricLabel = allMetricsMap.get(key)?.label || key;
@@ -594,7 +596,6 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             const compValue = visualisationData.compTotals[key] || 0;
                             const change = getChange(mainValue, compValue);
                             
-                            // 涨跌视觉定义 - 颜色进一步加深加重
                             const isGrowth = change > 0;
                             const isDecline = change < 0;
                             const cardBg = isGrowth ? 'bg-rose-200/60' : isDecline ? 'bg-green-200/60' : 'bg-white';
@@ -693,6 +694,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                                                 key === 'paid_amount' ? `¥${Math.round(row[key]).toLocaleString()}` :
                                                                 key === 'cost' ? `¥${Math.round(row[key]).toLocaleString()}` :
                                                                 ['cpc', 'roi'].includes(key) ? row[key].toFixed(1) : 
+                                                                key === 'paid_conversion_rate' ? `${(row[key]*100).toFixed(2)}%` :
                                                                 Math.round(row[key]).toLocaleString()
                                                             ) : row[key]}
                                                     </td>
