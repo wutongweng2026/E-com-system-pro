@@ -80,7 +80,7 @@ export const DashboardView = ({ skus, shops }: any) => {
     }, [timeMode, customStart, customEnd]);
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
+        <div className="p-8 w-full max-w-[1600px] mx-auto animate-fadeIn">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">AI 驾驶舱</h1>
@@ -111,7 +111,7 @@ export const DashboardView = ({ skus, shops }: any) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <KPICard title="总销售额 (GMV)" value={`¥${(data.current.gmv || 0).toLocaleString()}`} prevValue={data.previous.gmv} loading={isLoading} />
                 <KPICard title="成交件数 (CA)" value={(data.current.ca || 0).toLocaleString()} prevValue={data.previous.ca} loading={isLoading} />
                 <KPICard title="广告花费" value={`¥${(data.current.spend || 0).toLocaleString()}`} prevValue={data.previous.spend} loading={isLoading} />
@@ -168,7 +168,6 @@ const KPICard = ({ title, value, prevValue, loading }: any) => {
     const numericValue = parseFloat(value.replace(/[¥,]/g, '')) || 0;
     const change = prevValue > 0 ? ((numericValue - prevValue) / prevValue) * 100 : 0;
     
-    // 红涨绿跌视觉逻辑
     const isGrowth = change > 0;
     const isDecline = change < 0;
     const cardBg = isGrowth ? 'bg-rose-200/60' : isDecline ? 'bg-green-200/60' : 'bg-white';
@@ -176,8 +175,8 @@ const KPICard = ({ title, value, prevValue, loading }: any) => {
     const changeTextColor = isGrowth ? 'text-rose-700' : isDecline ? 'text-green-800' : 'text-slate-400';
 
     return (
-        <div className={`${cardBg} p-8 rounded-3xl shadow-sm border ${cardBorder} group transition-all duration-300`}>
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">{title}</h3>
+        <div className={`${cardBg} p-5 lg:p-8 rounded-3xl shadow-sm border ${cardBorder} group transition-all duration-300`}>
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 truncate">{title}</h3>
             {loading ? (
                 <div className="space-y-3">
                     <div className="h-10 bg-slate-50/50 animate-pulse rounded-lg w-3/4"></div>
@@ -185,13 +184,13 @@ const KPICard = ({ title, value, prevValue, loading }: any) => {
                 </div>
             ) : (
                 <>
-                    <p className="text-4xl font-black text-slate-900 group-hover:scale-105 transition-transform origin-left">{value}</p>
+                    <p className="text-xl lg:text-4xl font-black text-slate-900 group-hover:scale-105 transition-transform origin-left truncate">{value}</p>
                     <div className={`flex items-center gap-2 mt-4 pt-2 border-t ${isGrowth ? 'border-rose-300/50' : isDecline ? 'border-green-300/50' : 'border-slate-100'}`}>
                         <span className={`text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5 ${changeTextColor}`}>
                             {isGrowth ? <ArrowUp size={10} strokeWidth={4} /> : isDecline ? <ArrowDown size={10} strokeWidth={4} /> : null}
                             {Math.abs(change).toFixed(2)}%
                         </span>
-                        <span className="text-[10px] font-bold text-slate-500/70">较上一周期</span>
+                        <span className="text-[9px] lg:text-[10px] font-bold text-slate-500/70 whitespace-nowrap">较前周期</span>
                     </div>
                 </>
             )}

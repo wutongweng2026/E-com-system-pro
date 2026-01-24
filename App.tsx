@@ -190,7 +190,7 @@ export const App = () => {
     return (
         <div className="flex-container flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
-            <div className="main-content-fixed flex-1 flex flex-col h-full overflow-hidden relative">
+            <div className="main-content-fixed flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
                 <main className="flex-1 overflow-auto bg-slate-50/50 relative">
                     {renderView()}
                 </main>

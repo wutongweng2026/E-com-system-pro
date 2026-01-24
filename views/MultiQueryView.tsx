@@ -330,10 +330,34 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const totalPages = Math.ceil(queryResult.length / ROWS_PER_PAGE);
     const paginatedResult = queryResult.slice((currentPage - 1) * ROWS_PER_PAGE, currentPage * ROWS_PER_PAGE);
 
+    // 获取动态列宽 - 极致缩短
+    const getColumnWidth = (key: string) => {
+        switch (key) {
+            case 'sku_shop': return 'w-[160px]'; 
+            case 'date': return 'w-[130px]';     
+            case 'pv':
+            case 'uv':
+            case 'cost': return 'w-[105px]';     
+            case 'paid_users':
+            case 'paid_items':
+            case 'cpc':
+            case 'roi': return 'w-[85px]';      
+            case 'paid_amount': return 'w-[160px]';
+            default: return 'w-[100px]';        
+        }
+    };
+
+    // 获取对齐样式
+    const getTextAlign = (key: string) => {
+        if (key === 'sku_shop') return 'text-left pl-4';
+        if (['date', 'paid_amount', 'cost'].includes(key)) return 'text-right pr-6';
+        return 'text-center'; 
+    };
+
     return (
         <>
             <MetricSelectionModal isOpen={isMetricModalOpen} onClose={() => setIsMetricModalOpen(false)} shangzhiMetrics={shangzhiMetricsForModal} jingzhuntongMetrics={jingzhuntongMetricsForModal} selectedMetrics={selectedMetrics} onConfirm={(m: string[]) => { setSelectedMetrics(m); setIsMetricModalOpen(false); }} />
-            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
+            <div className="p-8 w-full max-w-[1600px] mx-auto animate-fadeIn">
                 <div className="mb-6 flex items-center justify-between">
                    <div>
                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">多维数据查询</h1>
@@ -429,7 +453,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                 <thead>
                                     <tr className="bg-slate-100/50 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                                         {resultHeaders.map(key => (
-                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${key === 'sku_shop' ? 'w-[210px]' : key === 'date' ? 'w-[200px]' : 'w-[165px]'}`}>{allMetricsMap.get(key)?.label || key}</th>
+                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${getColumnWidth(key)}`}>{allMetricsMap.get(key)?.label || key}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -442,14 +466,14 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                         paginatedResult.map((row, idx) => (
                                             <tr key={idx} className="hover:bg-slate-100/50 transition-colors group">
                                                 {resultHeaders.map(key => (
-                                                    <td key={key} className={`py-4 pr-8 text-xs text-slate-600 truncate font-mono text-right`}>
+                                                    <td key={key} className={`py-4 text-xs text-slate-600 truncate font-mono ${getTextAlign(key)}`}>
                                                         {key === 'sku_shop' ? (
                                                             <div className="truncate text-left pl-4">
                                                                 <div className="font-black text-slate-800 truncate" title={row.sku_shop.code}>{row.sku_shop.code}</div>
                                                                 <div className="text-[10px] text-slate-400 font-bold mt-1 truncate">{row.sku_shop.shopName}</div>
                                                             </div>
                                                         ) : key === 'date' ? (
-                                                            <span className="font-black text-slate-500 pr-4">{row.date}</span>
+                                                            <span className="font-black text-slate-500">{row.date}</span>
                                                         ) : (row[key] == null) ? '-' : typeof row[key] === 'number' ? formatMetricValue(row[key], key) : row[key]}
                                                     </td>
                                                 ))}
