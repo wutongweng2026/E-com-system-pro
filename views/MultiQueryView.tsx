@@ -196,7 +196,8 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const [visualisationData, setVisualisationData] = useState<any>(null);
     const [comparisonType, setComparisonType] = useState<'period' | 'year'>('period');
     
-    const VISUAL_METRICS = ['pv', 'uv', 'paid_users', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
+    // 8 个核心卡片排序：PV -> UV -> 成交件数 -> 成交金额 -> 成交转化率 -> 广告花费 -> CPC -> ROI
+    const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
     const [chartMetrics, setChartMetrics] = useState<Set<string>>(new Set(['uv', 'paid_items', 'cost']));
     const ROWS_PER_PAGE = 50;
     
@@ -388,7 +389,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>同比去年同期</button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-3 mb-10">
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-10">
                         {VISUAL_METRICS.map(key => {
                             const label = allMetricsMap.get(key)?.label || key;
                             const color = METRIC_COLORS[key] || '#94a3b8';
@@ -397,6 +398,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                             const comp = visualisationData.compTotals[key] || 0;
                             const chg = getChange(main, comp);
                             const isG = chg > 0; const isD = chg < 0;
+                            // 维持红涨绿跌
                             const bg = isG ? 'bg-rose-200/60' : isD ? 'bg-green-200/60' : 'bg-white';
                             const brd = isG ? 'border-rose-300' : isD ? 'border-green-300' : 'border-slate-100';
                             const txt = isG ? 'text-rose-700' : isD ? 'text-green-800' : 'text-slate-400';
@@ -427,7 +429,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                                 <thead>
                                     <tr className="bg-slate-100/50 text-slate-400 font-black text-[10px] uppercase tracking-widest">
                                         {resultHeaders.map(key => (
-                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${key === 'sku_shop' ? 'w-[300px]' : key === 'date' ? 'w-[180px]' : 'w-[150px]'}`}>{allMetricsMap.get(key)?.label || key}</th>
+                                            <th key={key} className={`py-4 px-4 text-center border-b border-slate-200 ${key === 'sku_shop' ? 'w-[210px]' : key === 'date' ? 'w-[200px]' : 'w-[165px]'}`}>{allMetricsMap.get(key)?.label || key}</th>
                                         ))}
                                     </tr>
                                 </thead>
