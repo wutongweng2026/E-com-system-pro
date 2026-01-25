@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset } from 'lucide-react';
+import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TableType, UploadHistory, Shop } from '../lib/types';
 import { getTableName, detectTableType } from '../lib/helpers';
@@ -121,7 +121,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
         const data = isOnlyTemplate ? [] : factTables[tableType];
 
         if (!currentSchema) {
-            addToast('error', '下载失败', '未找到对应的表结构。');
+            addToast('error', '操作失败', '未找到对应的表结构。');
             return;
         }
 
@@ -147,9 +147,9 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
             : `${getTableName(tableType)}_全量数据导出_${new Date().toISOString().split('T')[0]}.xlsx`;
             
         XLSX.writeFile(wb, fileName);
-        addToast('success', '操作成功', `已开始下载 ${fileName}`);
+        addToast('success', '下载开始', `正在准备: ${fileName}`);
     } catch (e) {
-        addToast('error', '操作失败', '无法生成Excel文件。');
+        addToast('error', '操作失败', '导出流程异常。');
     }
   };
 
@@ -275,98 +275,72 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-              {/* Left Side: Template Center */}
-              <div className="space-y-6">
+        <div className="bg-white rounded-3xl p-10 border border-slate-100 shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+              {/* Part 1: Template Download */}
+              <div className="lg:col-span-1 space-y-6">
                   <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
                       <div className="w-1.5 h-6 bg-[#70AD47] rounded-full"></div>
-                      导入模版下载
+                      1. 模版下载
                   </h3>
-                  <p className="text-xs text-slate-400 font-bold">同步数据前，请确保您的表格列头与下载的模版完全一致。</p>
-                  <div className="grid grid-cols-1 gap-3">
-                      <button onClick={() => handleDownloadTemplate('shangzhi', true)} className="group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
-                          <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#70AD47] shadow-sm group-hover:bg-[#70AD47] group-hover:text-white transition-colors">
-                                  <FileSpreadsheet size={20} />
-                              </div>
-                              <div className="text-left">
-                                  <p className="font-black text-slate-700 text-sm">商智数据模版</p>
-                                  <p className="text-[10px] text-slate-400 font-bold">标准销售明细格式</p>
-                              </div>
-                          </div>
-                          <Download size={16} className="text-slate-300 group-hover:text-[#70AD47]" />
+                  <p className="text-xs text-slate-400 font-bold leading-relaxed">同步数据前，请确保您的表格列头与下载的模版匹配。</p>
+                  <div className="space-y-2">
+                      <button onClick={() => handleDownloadTemplate('shangzhi', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
+                          <FileSpreadsheet size={18} className="text-[#70AD47]" />
+                          <span className="font-bold text-slate-700 text-xs">商智模版</span>
                       </button>
-                      <button onClick={() => handleDownloadTemplate('jingzhuntong', true)} className="group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
-                          <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-500 shadow-sm group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                                  <BarChart3 size={20} />
-                              </div>
-                              <div className="text-left">
-                                  <p className="font-black text-slate-700 text-sm">广告数据模版</p>
-                                  <p className="text-[10px] text-slate-400 font-bold">标准广告消耗格式</p>
-                              </div>
-                          </div>
-                          <Download size={16} className="text-slate-300 group-hover:text-blue-500" />
+                      <button onClick={() => handleDownloadTemplate('jingzhuntong', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-md transition-all">
+                          <BarChart3 size={18} className="text-blue-500" />
+                          <span className="font-bold text-slate-700 text-xs">广告模版</span>
                       </button>
-                      <button onClick={() => handleDownloadTemplate('customer_service', true)} className="group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
-                          <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-orange-500 shadow-sm group-hover:bg-orange-500 group-hover:text-white transition-colors">
-                                  <Headset size={20} />
-                              </div>
-                              <div className="text-left">
-                                  <p className="font-black text-slate-700 text-sm">客服统计模版</p>
-                                  <p className="text-[10px] text-slate-400 font-bold">标准客服接待格式</p>
-                              </div>
-                          </div>
-                          <Download size={16} className="text-slate-300 group-hover:text-orange-500" />
+                      <button onClick={() => handleDownloadTemplate('customer_service', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                          <Headset size={18} className="text-orange-500" />
+                          <span className="font-bold text-slate-700 text-xs">客服模版</span>
                       </button>
                   </div>
               </div>
 
-              {/* Right Side: Upload Configuration */}
-              <div className="lg:col-span-2 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                          <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">1. 选择导入目标表</h3>
-                          <div className="relative">
-                              <select 
-                                value={activeImportTab} 
-                                onChange={e => setActiveImportTab(e.target.value as TableType)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-black text-slate-700 outline-none focus:border-[#70AD47] appearance-none"
-                              >
-                                <option value="shangzhi">商智明细 (fact_shangzhi)</option>
-                                <option value="jingzhuntong">广告明细 (fact_jingzhuntong)</option>
-                                <option value="customer_service">客服统计 (fact_customer_service)</option>
-                              </select>
-                              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                          </div>
+              {/* Part 2: Upload/Sync Engine */}
+              <div className="lg:col-span-2 space-y-6 border-x border-slate-50 px-0 lg:px-8">
+                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
+                      <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
+                      2. 执行同步
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                          <select 
+                            value={activeImportTab} 
+                            onChange={e => setActiveImportTab(e.target.value as TableType)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-black text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm"
+                          >
+                            <option value="shangzhi">导入: 商智明细 (fact_shangzhi)</option>
+                            <option value="jingzhuntong">导入: 广告明细 (fact_jingzhuntong)</option>
+                            <option value="customer_service">导入: 客服统计 (fact_customer_service)</option>
+                          </select>
+                          <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       </div>
-                      <div className="space-y-4">
-                         <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">2. 指定归属店铺 (可选)</h3>
-                         <div className="relative">
-                            <select 
-                                value={defaultShopId} 
-                                onChange={e => setDefaultShopId(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-black text-slate-700 outline-none focus:border-[#70AD47] appearance-none"
-                             >
-                                <option value="">-- 若表格缺失则自动匹配资产 --</option>
-                                {shops.map((s:Shop) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                             </select>
-                             <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                         </div>
+                      <div className="relative">
+                        <select 
+                            value={defaultShopId} 
+                            onChange={e => setDefaultShopId(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-black text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm"
+                         >
+                            <option value="">-- 若表内缺失则自动匹配资产 --</option>
+                            {shops.map((s:Shop) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                         </select>
+                         <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       </div>
                   </div>
                   
-                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 hover:border-[#70AD47] transition-all rounded-3xl p-10 flex flex-col items-center justify-center relative group">
-                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm text-[#70AD47] mb-4 group-hover:scale-110 transition-transform">
-                            <UploadCloud size={32} />
+                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 hover:border-[#70AD47] transition-all rounded-3xl p-8 flex flex-col items-center justify-center relative group">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-[#70AD47] mb-4 group-hover:scale-110 transition-transform">
+                            <UploadCloud size={24} />
                         </div>
-                        <div className="text-center mb-8">
-                            <h4 className="font-black text-slate-800 text-lg">{selectedFile ? 'Excel 文件已就绪' : '点击或拖拽上传数据表'}</h4>
-                            <p className="text-xs text-slate-400 font-bold mt-1 tracking-widest">{selectedFile ? selectedFile.name : '支持覆盖更新模式 (UPSERT)'}</p>
+                        <div className="text-center mb-6">
+                            <h4 className="font-black text-slate-700 text-sm">{selectedFile ? selectedFile.name : '点击或拖拽上传数据表'}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold mt-1 tracking-widest italic">支持覆盖更新模式 (UPSERT)</p>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-3">
                             <div className="relative">
                                   <input 
                                       type="file" 
@@ -374,30 +348,49 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                                       accept=".xlsx, .xls" 
                                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                   />
-                                  <button className="bg-white border border-slate-200 text-slate-700 font-black text-xs px-8 py-3 rounded-xl hover:border-[#70AD47] transition-all shadow-sm">
-                                      {selectedFile ? '更换文件' : '选择物理文件'}
+                                  <button className="bg-white border border-slate-200 text-slate-600 font-black text-[10px] px-6 py-2.5 rounded-lg hover:border-[#70AD47] transition-all shadow-sm uppercase tracking-wider">
+                                      {selectedFile ? '更换文件' : '浏览文件'}
                                   </button>
                             </div>
                             <button 
                                   onClick={handleProcessClick}
                                   disabled={!selectedFile || isProcessing}
-                                  className="bg-[#70AD47] text-white font-black text-xs px-12 py-3 rounded-xl shadow-lg shadow-[#70AD47]/20 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed active:scale-95">
-                                  {isProcessing ? '正在同步库表...' : '立即执行同步'}
+                                  className="bg-[#70AD47] text-white font-black text-[10px] px-8 py-2.5 rounded-lg shadow-lg shadow-[#70AD47]/20 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed active:scale-95 uppercase tracking-wider">
+                                  {isProcessing ? '正在同步...' : '执行同步'}
                             </button>
                         </div>
                   </div>
+              </div>
 
-                  <div className="pt-6 border-t border-slate-100">
-                      <div className="flex items-center justify-between">
-                          <div>
-                              <h4 className="font-black text-slate-700 text-sm">物理层数据全量导出</h4>
-                              <p className="text-[10px] text-slate-400 font-bold mt-1">导出物理库中的原始记录备份</p>
+              {/* Part 3: Physical Data Archive (Full Export) */}
+              <div className="lg:col-span-1 space-y-6">
+                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
+                      <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
+                      3. 数据全量导出
+                  </h3>
+                  <p className="text-xs text-slate-400 font-bold leading-relaxed">导出物理库中的原始记录备份，用于异地迁移或手工审计。</p>
+                  <div className="space-y-2">
+                      <button onClick={() => handleDownloadTemplate('shangzhi', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                          <div className="flex items-center gap-3">
+                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
+                              <span className="font-bold text-slate-700 text-xs">导出全量商智</span>
                           </div>
-                          <div className="flex gap-2">
-                              <button onClick={() => handleDownloadTemplate('shangzhi', false)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] hover:bg-slate-200 transition-colors"><Download size={14}/> 导出商智数据</button>
-                              <button onClick={() => handleDownloadTemplate('jingzhuntong', false)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-600 font-black text-[10px] hover:bg-slate-200 transition-colors"><Download size={14}/> 导出广告数据</button>
+                          <Download size={14} className="text-slate-300" />
+                      </button>
+                      <button onClick={() => handleDownloadTemplate('jingzhuntong', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                          <div className="flex items-center gap-3">
+                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
+                              <span className="font-bold text-slate-700 text-xs">导出全量广告</span>
                           </div>
-                      </div>
+                          <Download size={14} className="text-slate-300" />
+                      </button>
+                      <button onClick={() => handleDownloadTemplate('customer_service', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                          <div className="flex items-center gap-3">
+                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
+                              <span className="font-bold text-slate-700 text-xs">导出全量客服</span>
+                          </div>
+                          <Download size={14} className="text-slate-300" />
+                      </button>
                   </div>
               </div>
           </div>
