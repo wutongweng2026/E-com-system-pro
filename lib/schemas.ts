@@ -1,3 +1,4 @@
+
 import { FieldDefinition } from './types';
 
 export const INITIAL_SHANGZHI_SCHEMA: FieldDefinition[] = [
@@ -8,7 +9,7 @@ export const INITIAL_SHANGZHI_SCHEMA: FieldDefinition[] = [
     { key: 'category_l1', label: '一级类目', type: 'STRING', required: false },
     { key: 'category_l2', label: '二级类目', type: 'STRING', required: false },
     { key: 'category_l3', label: '三级类目', type: 'STRING', required: false },
-    { key: 'shop_name', label: '店铺名称', type: 'STRING', required: true },
+    { key: 'shop_name', label: '店铺名称', type: 'STRING', required: false }, // 改为 false
     { key: 'business_mode', label: '经营模式', type: 'STRING', required: false },
     { key: 'pv', label: '浏览量', type: 'INTEGER', required: false },
     { key: 'uv', label: '访客数', type: 'INTEGER', required: false },

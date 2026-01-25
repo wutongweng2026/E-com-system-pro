@@ -451,7 +451,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                         <div className="overflow-x-auto rounded-xl border border-slate-100 no-scrollbar">
                             <table className="w-full text-sm border-collapse">
                                 <thead>
-                                    <tr className="bg-slate-100/50 text-slate-400 font-black text-[10px] uppercase tracking-widest">
+                                    <tr className="bg-slate-100/50 text-slate-400 font-black text-[10px] uppercase tracking-widest text-center">
                                         {resultHeaders.map(key => (
                                             <th key={key} className={`py-4 px-2 border-b border-slate-200 ${getColumnWidth(key)} text-center`}>{allMetricsMap.get(key)?.label || key}</th>
                                         ))}
