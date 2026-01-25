@@ -2,11 +2,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Calendar, Bot, FileText, Printer, Download, LoaderCircle, ChevronDown, List, ChevronsUpDown, Edit2, Trash2, X, Plus, Store, CheckSquare, Square } from 'lucide-react';
-import { ReportSubView, SkuList, ProductSKU, Shop } from '../lib/types';
+import { SkuList, ProductSKU, Shop } from '../lib/types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { getSkuIdentifier } from '../lib/helpers';
 
-// --- New Detailed Report Components ---
+// --- Detailed Report Components ---
 
 type Metric = {
   current: number;
@@ -55,15 +55,10 @@ const formatNumber = (val: number, type: 'int' | 'float' | 'currency' | 'percent
     }
 };
 
-/**
- * Fix: Explicitly type ChangeCell to ensure React correctly handles reserved props like 'key'
- * and avoids TypeScript "Property 'key' does not exist" errors during .map() rendering.
- */
 interface ChangeCellProps {
     current: number;
     previous: number;
     isBetterWhenLower?: boolean;
-    key?: React.Key;
 }
 
 const ChangeCell: React.FC<ChangeCellProps> = ({ current, previous, isBetterWhenLower = false }) => {
@@ -193,16 +188,14 @@ interface ReportsViewProps {
 }
 
 export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList, onUpdateSkuList, onDeleteSkuList, addToast }: ReportsViewProps) => {
-    const [activeTab, setActiveTab] = useState<ReportSubView>('daily');
     const [reportData, setReportData] = useState<ShopReportData[] | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [aiCommentary, setAiCommentary] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
     
-    // Dates
-    const [dailyDate, setDailyDate] = useState(new Date().toISOString().split('T')[0]);
-    const [weekDate, setWeekDate] = useState(new Date().toISOString().split('T')[0]);
-    const [monthlyDate, setMonthlyDate] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
+    // Time Range Selection
+    const [startDate, setStartDate] = useState(new Date(Date.now() - 6*86400000).toISOString().split('T')[0]);
+    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
     
     const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
     const [selectedShopIds, setSelectedShopIds] = useState<string[]>([]);
@@ -223,48 +216,34 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
     }, []);
 
     const generateReport = async () => {
+        if (!startDate || !endDate) {
+            addToast('error', '参数缺失', '请选择完整的时间范围。');
+            return;
+        }
+
         setIsLoading(true);
         setReportData(null);
         setAiCommentary('');
         
         try {
             // Determine time ranges
-            let currentStart: string, currentEnd: string, prevStart: string, prevEnd: string, mainTitle: string;
+            const currentStart = startDate;
+            const currentEnd = endDate;
             
-            if (activeTab === 'daily') {
-                currentStart = currentEnd = dailyDate;
-                const d = new Date(dailyDate);
-                d.setDate(d.getDate() - 1);
-                prevStart = prevEnd = d.toISOString().split('T')[0];
-                mainTitle = `${dailyDate} 每日运营日报`;
-            } else if (activeTab === 'weekly') {
-                const end = new Date(weekDate);
-                const start = new Date(weekDate);
-                start.setDate(end.getDate() - 6);
-                currentStart = start.toISOString().split('T')[0];
-                currentEnd = end.toISOString().split('T')[0];
-                
-                const pEnd = new Date(start);
-                pEnd.setDate(pEnd.getDate() - 1);
-                const pStart = new Date(pEnd);
-                pStart.setDate(pStart.getDate() - 6);
-                prevStart = pStart.toISOString().split('T')[0];
-                prevEnd = pEnd.toISOString().split('T')[0];
-                mainTitle = `${currentStart} 至 ${currentEnd} 运营周报`;
-            } else {
-                const { year, month } = monthlyDate;
-                currentStart = `${year}-${String(month).padStart(2, '0')}-01`;
-                const lastDay = new Date(year, month, 0).getDate();
-                currentEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-                
-                const pDate = new Date(year, month - 1, 0);
-                const pYear = pDate.getFullYear();
-                const pMonth = pDate.getMonth() + 1;
-                prevStart = `${pYear}-${String(pMonth).padStart(2, '0')}-01`;
-                const pLastDay = pDate.getDate();
-                prevEnd = `${pYear}-${String(pMonth).padStart(2, '0')}-${String(pLastDay).padStart(2, '0')}`;
-                mainTitle = `${year}年${month}月 运营月报`;
-            }
+            // Calculate previous period
+            const sDate = new Date(startDate);
+            const eDate = new Date(endDate);
+            const diffDays = Math.ceil((eDate.getTime() - sDate.getTime()) / 86400000) + 1;
+            
+            const prevEndDateObj = new Date(sDate);
+            prevEndDateObj.setDate(prevEndDateObj.getDate() - 1);
+            const prevStartDateObj = new Date(prevEndDateObj);
+            prevStartDateObj.setDate(prevStartDateObj.getDate() - (diffDays - 1));
+            
+            const prevStart = prevStartDateObj.toISOString().split('T')[0];
+            const prevEnd = prevEndDateObj.toISOString().split('T')[0];
+            
+            const mainTitle = `${currentStart} 至 ${currentEnd} 运营报表`;
 
             // Filter context
             const skuCodesFromLists = new Set<string>();
@@ -355,8 +334,6 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
             });
 
             setReportData(finalReportData);
-            
-            // Trigger AI Commentary
             fetchAiCommentary(finalReportData, mainTitle);
 
         } catch (err) {
@@ -394,45 +371,25 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                     <h1 className="text-3xl font-black text-slate-800 tracking-tight">运营报表中心</h1>
                     <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Automated Performance Reports</p>
                 </div>
-                <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100">
-                    {['daily', 'weekly', 'monthly'].map(tab => (
-                        <button 
-                            key={tab} 
-                            onClick={() => setActiveTab(tab as ReportSubView)} 
-                            className={`px-6 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === tab ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                            {tab === 'daily' ? '日报' : tab === 'weekly' ? '周报' : '月报'}
-                        </button>
-                    ))}
-                </div>
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-wrap items-end gap-4">
                 {/* Date Selection */}
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">选择日期</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase">设定时间范围</label>
                     <div className="flex items-center gap-2">
-                        {activeTab === 'daily' && <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#70AD47]" />}
-                        {activeTab === 'weekly' && <input type="date" value={weekDate} onChange={e => setWeekDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#70AD47]" />}
-                        {activeTab === 'monthly' && (
-                            <div className="flex gap-2">
-                                <select value={monthlyDate.year} onChange={e => setMonthlyDate(prev => ({...prev, year: parseInt(e.target.value)}))} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold">
-                                    {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}年</option>)}
-                                </select>
-                                <select value={monthlyDate.month} onChange={e => setMonthlyDate(prev => ({...prev, month: parseInt(e.target.value)}))} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold">
-                                    {Array.from({length:12}).map((_,i) => <option key={i+1} value={i+1}>{i+1}月</option>)}
-                                </select>
-                            </div>
-                        )}
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#70AD47]" />
+                        <span className="text-slate-300 font-bold">-</span>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#70AD47]" />
                     </div>
                 </div>
 
                 {/* Shop Filter */}
                 <div className="space-y-1 relative" ref={shopDropdownRef}>
                     <label className="text-[10px] font-black text-slate-400 uppercase">店铺范围</label>
-                    <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center">
+                    <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center shadow-sm">
                         <span className="truncate">{selectedShopIds.length === 0 ? '全部店铺' : `已选 ${selectedShopIds.length} 个`}</span>
-                        <ChevronDown size={16} />
+                        <ChevronDown size={16} className="text-slate-400" />
                     </button>
                     {isShopDropdownOpen && (
                         <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
@@ -455,9 +412,9 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                 {/* SKU List Filter */}
                 <div className="space-y-1 relative" ref={listDropdownRef}>
                     <label className="text-[10px] font-black text-slate-400 uppercase">SKU清单限制</label>
-                    <button onClick={() => setIsListDropdownOpen(!isListDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center">
+                    <button onClick={() => setIsListDropdownOpen(!isListDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center shadow-sm">
                         <span className="truncate">{selectedListIds.length === 0 ? '不限清单' : `已选 ${selectedListIds.length} 个`}</span>
-                        <ChevronDown size={16} />
+                        <ChevronDown size={16} className="text-slate-400" />
                     </button>
                     {isListDropdownOpen && (
                         <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
@@ -486,14 +443,14 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                     disabled={isLoading}
                     className="bg-[#70AD47] text-white px-8 py-2 rounded-lg font-black text-sm shadow-lg shadow-[#70AD47]/20 hover:bg-[#5da035] transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
                 >
-                    {isLoading ? <LoaderCircle size={18} className="animate-spin" /> : '生成核心报表'}
+                    {isLoading ? <LoaderCircle size={18} className="animate-spin" /> : '生成对比报表'}
                 </button>
             </div>
 
             {reportData ? (
                 <DetailedReportDisplay 
                     reports={reportData} 
-                    mainTitle={activeTab === 'daily' ? `${dailyDate} 运营日报` : activeTab === 'weekly' ? '运营周报' : '运营月报'}
+                    mainTitle={`${startDate} 至 ${endDate} 运营对比报表`}
                     aiCommentary={aiCommentary}
                     isAiLoading={isAiLoading}
                 />
@@ -502,7 +459,7 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                     <div className="flex flex-col items-center justify-center text-slate-300">
                         <FileText size={64} className="mb-6 opacity-20" />
                         <h3 className="text-xl font-black text-slate-400">报表已就绪</h3>
-                        <p className="text-sm mt-2 font-bold max-w-sm">请在上方完成筛选参数设定，点击“生成核心报表”按钮即可开启数据驱动的精细化运营分析。</p>
+                        <p className="text-sm mt-2 font-bold max-w-sm">请在上方设定自定义时间范围与筛选参数，点击“生成对比报表”开启多维数据审计。</p>
                     </div>
                 </div>
             )}
