@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Eye, Settings, Database, RotateCcw, Plus, FileText, Download, Trash2, Edit2, X, Search, Filter, Zap, AlertCircle } from 'lucide-react';
-import { DataExpSubView, TableType, FieldDefinition } from '../lib/types';
-import { getTableName } from '../lib/helpers';
+import { Eye, Settings, Database, RotateCcw, Plus, FileText, Download, Trash2, Edit2, X, Search, Filter, Zap, AlertCircle, Calendar, Store, CheckSquare, Square, RefreshCcw } from 'lucide-react';
+import { DataExpSubView, TableType, FieldDefinition, Shop } from '../lib/types';
+import { getTableName, getSkuIdentifier } from '../lib/helpers';
 import { INITIAL_SHANGZHI_SCHEMA, INITIAL_JINGZHUNTONG_SCHEMA, INITIAL_CUSTOMER_SERVICE_SCHEMA } from '../lib/schemas';
 import { ConfirmModal } from '../components/ConfirmModal';
 
@@ -173,7 +174,6 @@ const EditFieldModal = ({ isOpen, onClose, onConfirm, field }: { isOpen: boolean
     );
 };
 
-
 const formatDateForDisplay = (dateValue: any): string => {
     if (!dateValue) return '-';
     const dateStr = String(dateValue);
@@ -183,15 +183,23 @@ const formatDateForDisplay = (dateValue: any): string => {
     return dateStr;
 };
 
-
-export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClearTable, addToast }: any) => {
+export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema, onClearTable, onDeleteRows, addToast }: any) => {
     const [activeTab, setActiveTab] = useState<DataExpSubView>('preview');
     const [selectedSchemaType, setSelectedSchemaType] = useState<TableType>('shangzhi');
     const [isAddFieldModalOpen, setIsAddFieldModalOpen] = useState(false);
     const [isClearModalOpen, setIsClearModalOpen] = useState(false);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+    const [isDeleteSelectedModalOpen, setIsDeleteSelectedModalOpen] = useState(false);
     const [editingField, setEditingField] = useState<FieldDefinition | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
+    
+    // 增强搜索状态
+    const [skuSearch, setSkuSearch] = useState('');
+    const [shopSearch, setShopSearch] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    
+    // 选择状态
+    const [selectedRowIds, setSelectedRowIds] = useState<Set<any>>(new Set());
 
     const currentSchema = schemas[selectedSchemaType] || [];
     
@@ -207,17 +215,44 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
 
     const filteredData = useMemo(() => {
         const tableData = factTables[selectedSchemaType] || [];
-        if (!searchTerm) {
-            return tableData;
-        }
-        const lowercasedFilter = searchTerm.toLowerCase();
-
+        
         return tableData.filter((row: any) => {
-            return Object.values(row).some(value =>
-                value !== null && value !== undefined && String(value).toLowerCase().includes(lowercasedFilter)
-            );
+            // SKU 筛选 (SKU, 商品ID, 广告SKU ID)
+            const rowSku = getSkuIdentifier(row);
+            const rowProdId = row.product_id || '';
+            const rowTrackedId = row.tracked_sku_id || '';
+            const skuMatch = !skuSearch || 
+                             String(rowSku).includes(skuSearch) || 
+                             String(rowProdId).includes(skuSearch) || 
+                             String(rowTrackedId).includes(skuSearch);
+            
+            // 店铺筛选
+            const rowShop = row.shop_name || '';
+            const shopMatch = !shopSearch || rowShop === shopSearch;
+            
+            // 日期筛选
+            const rowDate = row.date || '';
+            const dateMatch = (!startDate || rowDate >= startDate) && 
+                              (!endDate || rowDate <= endDate);
+            
+            return skuMatch && shopMatch && dateMatch;
         });
-    }, [searchTerm, factTables, selectedSchemaType]);
+    }, [skuSearch, shopSearch, startDate, endDate, factTables, selectedSchemaType]);
+
+    // 处理全选/取消全选
+    const handleSelectAll = () => {
+        if (selectedRowIds.size === filteredData.length) {
+            setSelectedRowIds(new Set());
+        } else {
+            setSelectedRowIds(new Set(filteredData.map(r => r.id)));
+        }
+    };
+
+    const handleSelectRow = (id: any) => {
+        const next = new Set(selectedRowIds);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        setSelectedRowIds(next);
+    };
 
     const handleResetSchema = () => {
         setIsResetModalOpen(true);
@@ -244,45 +279,11 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
         setEditingField(field);
     };
 
-    const handleCloseEditModal = () => {
-        setEditingField(null);
-    };
-
     const handleConfirmEditField = (updatedField: FieldDefinition) => {
         const newSchema = currentSchema.map(f => f.key === updatedField.key ? updatedField : f);
         onUpdateSchema(selectedSchemaType, newSchema);
         addToast('success', '更新成功', `字段 [${updatedField.label}] 已更新。`);
-        handleCloseEditModal();
-    };
-
-    const handleExportSchema = () => {
-        try {
-            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
-                JSON.stringify(currentSchema, null, 2)
-            )}`;
-            const link = document.createElement("a");
-            link.href = jsonString;
-            link.download = `${selectedSchemaType}_schema.json`;
-            link.click();
-            addToast('success', '导出成功', '已开始下载表结构JSON文件。');
-        } catch (e) {
-            addToast('error', '导出失败', '无法生成JSON文件。');
-            console.error(e);
-        }
-    };
-    
-    const handleDownloadTemplate = () => {
-        try {
-            const headers = displaySchema.map(field => field.label);
-            const ws = XLSX.utils.aoa_to_sheet([headers]);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "模板");
-            XLSX.writeFile(wb, `${getTableName(selectedSchemaType)}_template.xlsx`);
-            addToast('success', '下载成功', '已开始下载Excel模板文件。');
-        } catch (e) {
-            addToast('error', '下载失败', '无法生成Excel模板。');
-            console.error(e);
-        }
+        setEditingField(null);
     };
 
     const handleDeleteData = () => {
@@ -292,20 +293,46 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
     const handleConfirmClearData = () => {
         onClearTable(selectedSchemaType);
         setIsClearModalOpen(false);
+        setSelectedRowIds(new Set());
+    };
+
+    const handleConfirmDeleteSelected = async () => {
+        await onDeleteRows(selectedSchemaType, Array.from(selectedRowIds));
+        setSelectedRowIds(new Set());
+        setIsDeleteSelectedModalOpen(false);
+    };
+
+    const resetFilters = () => {
+        setSkuSearch('');
+        setShopSearch('');
+        setStartDate('');
+        setEndDate('');
     };
 
     return (
         <>
             <ConfirmModal
                 isOpen={isClearModalOpen}
-                title="确认清空数据"
+                title="确认清空物理表"
                 onConfirm={handleConfirmClearData}
                 onCancel={() => setIsClearModalOpen(false)}
                 confirmText="确认清空"
                 confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20"
             >
-                <p>您确定要清空 <strong className="font-black text-slate-800">[{getTableName(selectedSchemaType)}]</strong> 表的所有数据吗？</p>
-                <p className="mt-2 text-rose-500 font-bold">此操作不可撤销，但表结构会保留。</p>
+                <p>您确定要清空 <strong className="font-black text-slate-800">[{getTableName(selectedSchemaType)}]</strong> 表的所有物理记录吗？</p>
+                <p className="mt-2 text-rose-500 font-bold">此操作将移除全量历史导入数据，不可恢复。</p>
+            </ConfirmModal>
+
+            <ConfirmModal
+                isOpen={isDeleteSelectedModalOpen}
+                title="批量删除物理数据"
+                onConfirm={handleConfirmDeleteSelected}
+                onCancel={() => setIsDeleteSelectedModalOpen(false)}
+                confirmText="立即删除"
+                confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20"
+            >
+                <p>您当前选择了 <strong className="font-black text-rose-600">{selectedRowIds.size}</strong> 条记录。</p>
+                <p className="mt-2 text-slate-600">删除操作将直接修改本地物理表，不可撤销。确认继续吗？</p>
             </ConfirmModal>
 
             <ConfirmModal
@@ -328,21 +355,25 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
             />
             <EditFieldModal 
                 isOpen={!!editingField}
-                onClose={handleCloseEditModal}
+                onClose={() => setEditingField(null)}
                 onConfirm={handleConfirmEditField}
                 field={editingField}
             />
-            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-                <div className="flex items-center justify-between mb-8">
+
+            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn space-y-8">
+                <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-black text-slate-800 tracking-tight">数据体验中心</h1>
-                        <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">PHYSICAL DATA EXPLORATION & PREVIEW</p>
+                        <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">物理层数据资产清洗与管理</p>
                     </div>
                      <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100">
                         {['shangzhi', 'jingzhuntong', 'customer_service'].map((t) => (
                              <button 
                                 key={t}
-                                onClick={() => setSelectedSchemaType(t as TableType)}
+                                onClick={() => {
+                                    setSelectedSchemaType(t as TableType);
+                                    setSelectedRowIds(new Set());
+                                }}
                                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all capitalize ${selectedSchemaType === t ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}
                             >
                                 {getTableName(t as TableType)}明细
@@ -351,13 +382,13 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
                     </div>
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[600px] flex flex-col">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[700px] flex flex-col">
                     <div className="flex items-center gap-6 px-8 pt-6 border-b border-slate-100/50">
                         <button 
                             onClick={() => setActiveTab('preview')}
                             className={`pb-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'preview' ? 'border-[#70AD47] text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                         >
-                            <Eye size={16} /> 数据预览
+                            <Eye size={16} /> 数据清洗管理
                         </button>
                         <button 
                             onClick={() => setActiveTab('schema')}
@@ -372,14 +403,12 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                     <Database size={18} className="text-[#70AD47]" />
-                                    {getTableName(selectedSchemaType)} 字段映射定义
+                                    {getTableName(selectedSchemaType)} 字段映射映射逻辑
                                 </h3>
                                 <div className="flex gap-2">
                                     <button onClick={handleResetSchema} title="重置为默认结构" className="p-2 text-slate-400 hover:text-white hover:bg-orange-400 rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><RotateCcw size={16} /></button>
                                     <button onClick={() => setIsAddFieldModalOpen(true)} title="添加新字段" className="p-2 text-slate-400 hover:text-white hover:bg-[#70AD47] rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><Plus size={16} /></button>
-                                    <button onClick={handleExportSchema} title="导出结构 (JSON)" className="p-2 text-slate-400 hover:text-white hover:bg-[#70AD47] rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><FileText size={16} /></button>
-                                    <button onClick={handleDownloadTemplate} title="下载导入模板 (Excel)" className="p-2 text-slate-400 hover:text-white hover:bg-[#70AD47] rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><Download size={16} /></button>
-                                    <button onClick={handleDeleteData} title="清空此表数据" className="p-2 text-slate-400 hover:text-white hover:bg-rose-500 rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><Trash2 size={16} /></button>
+                                    <button onClick={handleDeleteData} title="清空此表全量物理数据" className="p-2 text-slate-400 hover:text-white hover:bg-rose-500 rounded-lg transition-colors bg-white border border-slate-200 shadow-sm"><Trash2 size={16} /></button>
                                 </div>
                             </div>
 
@@ -389,9 +418,9 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
                                         <div>
                                             <div className="flex items-center gap-3 mb-3">
                                                 {field.required ? (
-                                                    <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded">必须核心</span>
+                                                    <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded">核心字段</span>
                                                 ) : (
-                                                    <span className="bg-blue-50 text-blue-500 text-[10px] font-black px-2 py-0.5 rounded">选填扩展</span>
+                                                    <span className="bg-blue-50 text-blue-500 text-[10px] font-black px-2 py-0.5 rounded">扩展字段</span>
                                                 )}
                                                 <span className="font-bold text-slate-800 text-sm">{field.label}</span>
                                                 <span className="text-xs text-slate-300 font-mono">[{field.key}]</span>
@@ -414,34 +443,92 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
                     )}
 
                     {activeTab === 'preview' && (
-                        <div className="flex-1 flex flex-col">
-                            <div className="p-4 border-b border-slate-100 flex gap-4 bg-slate-50/50">
-                                 <div className="relative flex-1">
-                                    <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                                    <input 
-                                        placeholder="检索全表字段..." 
-                                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-[#70AD47]" 
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                        <div className="flex-1 flex flex-col min-h-0">
+                            {/* 组合筛选区域 */}
+                            <div className="p-6 border-b border-slate-100 bg-slate-50/50 space-y-4">
+                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="relative">
+                                        <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                        <input 
+                                            placeholder="SKU / 商品ID / 广告ID" 
+                                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47]" 
+                                            value={skuSearch}
+                                            onChange={(e) => setSkuSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Calendar size={16} className="text-slate-400 shrink-0" />
+                                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47]" />
+                                        <span className="text-slate-300">-</span>
+                                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47]" />
+                                    </div>
+                                    <div className="relative">
+                                        <Store size={16} className="absolute left-3 top-2.5 text-slate-400" />
+                                        <select 
+                                            value={shopSearch}
+                                            onChange={e => setShopSearch(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47] appearance-none"
+                                        >
+                                            <option value="">所有店铺数据</option>
+                                            {shops.map((s:Shop) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={resetFilters} className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">
+                                            <RefreshCcw size={14} /> 清空筛选
+                                        </button>
+                                        <button className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-colors">
+                                            执行检索
+                                        </button>
+                                    </div>
                                  </div>
-                                 <button className="px-4 bg-white border border-slate-200 rounded-lg text-slate-500 hover:text-[#70AD47]"><Filter size={18} /></button>
+
+                                 <div className="flex items-center justify-between">
+                                     <div className="flex items-center gap-4">
+                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">筛选结果: {filteredData.length} 行</span>
+                                         {selectedRowIds.size > 0 && (
+                                             <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">已选择: {selectedRowIds.size} 行</span>
+                                         )}
+                                     </div>
+                                     <div className="flex gap-2">
+                                         {selectedRowIds.size > 0 && (
+                                             <button 
+                                                onClick={() => setIsDeleteSelectedModalOpen(true)}
+                                                className="flex items-center gap-2 px-6 py-2 bg-rose-500 text-white rounded-lg text-xs font-black hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all active:scale-95"
+                                             >
+                                                 <Trash2 size={14} /> 批量删除选中行
+                                             </button>
+                                         )}
+                                     </div>
+                                 </div>
                             </div>
-                            <div className="flex-1 overflow-auto">
-                                <table className="w-full text-left text-xs whitespace-nowrap">
-                                    <thead className="bg-slate-50 sticky top-0 z-10">
+
+                            {/* 数据表格 */}
+                            <div className="flex-1 overflow-auto no-scrollbar relative">
+                                <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0">
+                                    <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm">
                                         <tr>
+                                            <th className="px-6 py-4 border-b border-slate-200 w-12 bg-slate-50">
+                                                <button onClick={handleSelectAll} className="text-slate-400 hover:text-[#70AD47] transition-colors">
+                                                    {selectedRowIds.size === filteredData.length && filteredData.length > 0 ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                </button>
+                                            </th>
                                             {displaySchema.map((f:FieldDefinition) => (
-                                                <th key={f.key} className="px-6 py-4 font-bold text-slate-500 border-b border-slate-200">{f.label}</th>
+                                                <th key={f.key} className="px-6 py-4 font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 bg-slate-50">{f.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {filteredData.length > 0 ? (
-                                            filteredData.slice(0, 100).map((row: any, rIdx: number) => (
-                                                <tr key={rIdx} className="hover:bg-slate-50">
+                                            filteredData.slice(0, 500).map((row: any, rIdx: number) => (
+                                                <tr key={row.id || rIdx} className={`hover:bg-slate-50 transition-colors ${selectedRowIds.has(row.id) ? 'bg-[#70AD47]/5' : ''}`}>
+                                                    <td className="px-6 py-3 border-b border-slate-50 w-12">
+                                                        <button onClick={() => handleSelectRow(row.id)} className={`${selectedRowIds.has(row.id) ? 'text-[#70AD47]' : 'text-slate-200'} hover:text-[#70AD47] transition-colors`}>
+                                                            {selectedRowIds.has(row.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                        </button>
+                                                    </td>
                                                     {displaySchema.map((f:FieldDefinition) => (
-                                                        <td key={f.key} className="px-6 py-3 text-slate-600">
+                                                        <td key={f.key} className={`px-6 py-3 border-b border-slate-50 ${f.key === 'sku_code' || f.key === 'product_id' ? 'font-mono font-bold text-slate-800' : 'text-slate-600'}`}>
                                                             {f.key === 'date' ? formatDateForDisplay(row[f.key]) : (row[f.key] ?? '-')}
                                                         </td>
                                                     ))}
@@ -449,13 +536,22 @@ export const DataExperienceView = ({ factTables, schemas, onUpdateSchema, onClea
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={displaySchema.length} className="py-32 text-center">
-                                                    <p className="text-slate-300 font-bold tracking-widest text-sm uppercase italic">Empty Table or No Search Match</p>
+                                                <td colSpan={displaySchema.length + 1} className="py-40 text-center">
+                                                    <div className="flex flex-col items-center justify-center text-slate-300">
+                                                        <Database size={64} className="mb-4 opacity-10" />
+                                                        <p className="font-black tracking-widest text-sm uppercase italic">没有匹配的物理记录</p>
+                                                        <p className="text-xs mt-2 font-bold opacity-60">请尝试调整筛选条件或在数据中心同步新表</p>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )}
                                     </tbody>
                                 </table>
+                                {filteredData.length > 500 && (
+                                    <div className="p-4 text-center bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-t border-slate-100">
+                                        提示：仅展示前 500 条匹配数据，请缩小筛选范围以管理特定记录
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

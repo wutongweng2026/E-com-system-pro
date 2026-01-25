@@ -113,7 +113,6 @@ export const App = () => {
                         field.tags?.forEach((tag: string) => labelToKeyMap.set(tag, field.key));
                     });
 
-                    // 店铺映射逻辑准备
                     const defaultShop = shops.find(s => s.id === defaultShopId);
                     const skuCodeToShopMap = new Map(skus.map(s => [s.code, shops.find(shop => shop.id === s.shopId)?.name]));
 
@@ -125,7 +124,6 @@ export const App = () => {
                         }
                         if (newRow.date) newRow.date = normalizeDate(newRow.date);
 
-                        // 店铺补齐逻辑: 表格 > 默认选择 > 资产关联
                         const skuId = getSkuIdentifier(newRow);
                         if (!newRow.shop_name && targetTable === 'shangzhi') {
                             newRow.shop_name = defaultShop?.name || skuCodeToShopMap.get(skuId || '') || '';
@@ -133,14 +131,11 @@ export const App = () => {
                         return newRow;
                     }).filter(row => row.date && getSkuIdentifier(row));
 
-                    // --- UPSERT 核心逻辑优化 ---
-                    // 1. 在 IndexedDB 事务中，根据 [sku_code, date] 索引查找已存在的记录并删除
                     const db = await DB.getDB();
                     const transaction = db.transaction([tableName], 'readwrite');
                     const store = transaction.objectStore(tableName);
                     const index = store.index('sku_date');
 
-                    // 分批并行删除旧记录
                     const deletePromises = processedRows.map(row => {
                         return new Promise<void>((res) => {
                             const skuId = getSkuIdentifier(row);
@@ -155,8 +150,6 @@ export const App = () => {
                     });
 
                     await Promise.all(deletePromises);
-                    
-                    // 2. 批量写入新纪录 (此时已无旧数据干扰)
                     await DB.bulkAdd(tableName, processedRows);
 
                     const historyItem: UploadHistory = {
@@ -218,6 +211,23 @@ export const App = () => {
         addToast('success', '清空成功', `物理表数据已重置。`);
     };
 
+    const handleDeleteRows = async (tableType: TableType, ids: any[]) => {
+        const tableName = `fact_${tableType}`;
+        const db = await DB.getDB();
+        const transaction = db.transaction([tableName], 'readwrite');
+        const store = transaction.objectStore(tableName);
+        ids.forEach(id => store.delete(id));
+        
+        return new Promise<void>((resolve, reject) => {
+            transaction.oncomplete = async () => {
+                await loadMetadata();
+                addToast('success', '删除成功', `已从物理表中移除 ${ids.length} 条记录。`);
+                resolve();
+            };
+            transaction.onerror = () => reject(transaction.error);
+        });
+    };
+
     const handleUpdateSKU = async (sku: ProductSKU) => {
         const updated = skus.map(s => s.id === sku.id ? sku : s);
         setSkus(updated);
@@ -233,7 +243,7 @@ export const App = () => {
             case 'multiquery': return <MultiQueryView {...commonProps} shangzhiData={factTables.shangzhi} jingzhuntongData={factTables.jingzhuntong} />;
             case 'reports': return <ReportsView {...commonProps} factTables={factTables} skuLists={skuLists} onAddNewSkuList={async (l) => { const n = [...skuLists, {...l, id: Date.now().toString()}]; setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onUpdateSkuList={async (l) => { const n = skuLists.map(x=>x.id===l.id?l:x); setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onDeleteSkuList={(id) => { const n = skuLists.filter(x=>x.id!==id); setSkuLists(n); DB.saveConfig('dim_sku_lists', n); }} />;
             case 'data-center': return <DataCenterView onUpload={handleProcessAndUpload} onBatchUpdate={handleBatchUpdateShopField} history={uploadHistory} factTables={factTables} shops={shops} schemas={schemas} addToast={addToast} />;
-            case 'data-experience': return <DataExperienceView factTables={factTables} schemas={schemas} onClearTable={handleClearTable} onUpdateSchema={async (t:any, s:any) => { const ns = {...schemas, [t]: s}; setSchemas(ns); await DB.saveConfig(`schema_${t}`, s); }} addToast={addToast} />;
+            case 'data-experience': return <DataExperienceView factTables={factTables} schemas={schemas} shops={shops} onClearTable={handleClearTable} onDeleteRows={handleDeleteRows} onUpdateSchema={async (t:any, s:any) => { const ns = {...schemas, [t]: s}; setSchemas(ns); await DB.saveConfig(`schema_${t}`, s); }} addToast={addToast} />;
             case 'products': return <SKUManagementView {...commonProps} skuLists={skuLists} onAddNewSKU={async (s) => { const n = [{...s, id:Date.now().toString()}, ...skus]; setSkus(n); await DB.saveConfig('dim_skus', n); return true; }} onUpdateSKU={handleUpdateSKU} onDeleteSKU={async (id) => { const n = skus.filter(s=>s.id!==id); setSkus(n); await DB.saveConfig('dim_skus', n); }} onBulkAddSKUs={async (ss) => { const n = [...ss.map((s,i)=>({...s, id:(Date.now()+i).toString()})), ...skus]; setSkus(n); await DB.saveConfig('dim_skus', n); }} onAddNewShop={async (s) => { const n = [{...s, id:Date.now().toString()}, ...shops]; setShops(n); await DB.saveConfig('dim_shops', n); return true; }} onUpdateShop={async (s) => { const n = shops.map(x=>x.id===s.id?s:x); setShops(n); await DB.saveConfig('dim_shops', n); return true; }} onDeleteShop={async (id) => { const n = shops.filter(x=>x.id!==id); setShops(n); await DB.saveConfig('dim_shops', n); }} onBulkAddShops={async (ss) => { const n = [...ss.map((s,i)=>({...s, id:(Date.now()+i).toString()})), ...shops]; setShops(n); await DB.saveConfig('dim_shops', n); }} onAddNewAgent={async (a) => { const n = [{...a, id:Date.now().toString()}, ...agents]; setAgents(n); await DB.saveConfig('dim_agents', n); return true; }} onUpdateAgent={async (a) => { const n = agents.map(x=>x.id===a.id?a:x); setAgents(n); await DB.saveConfig('dim_agents', n); return true; }} onDeleteAgent={async (id) => { const n = agents.filter(x=>x.id!==id); setAgents(n); await DB.saveConfig('dim_agents', n); }} onBulkAddAgents={async (as) => { const n = [...as.map((a,i)=>({...a, id:(Date.now()+i).toString()})), ...agents]; setAgents(n); await DB.saveConfig('dim_agents', n); }} onAddNewSkuList={async (l) => { const n = [{...l, id:Date.now().toString()}, ...skuLists]; setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onUpdateSkuList={async (l) => { const n = skuLists.map(x=>x.id===l.id?l:x); setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onDeleteSkuList={async (id) => { const n = skuLists.filter(x=>x.id!==id); setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); }} />;
             case 'ai-profit-analytics': return <AIProfitAnalyticsView {...commonProps} />;
             case 'ai-smart-replenishment': return <AISmartReplenishmentView shangzhiData={factTables.shangzhi} onUpdateSKU={handleUpdateSKU} {...commonProps} />;
