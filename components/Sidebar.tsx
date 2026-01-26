@@ -5,8 +5,6 @@ import {
     Search, 
     Package, 
     Database, 
-    PanelLeftClose, 
-    PanelLeftOpen,
     TrendingUp,
     Calculator,
     DollarSign,
@@ -15,6 +13,7 @@ import {
     Sparkles,
     CloudSync,
     ChevronRight,
+    ChevronLeft,
     Compass,
     Binoculars,
     MessageSquare,
@@ -63,18 +62,26 @@ export const Sidebar = ({ currentView, setCurrentView, isSidebarCollapsed, setIs
     setIsSidebarCollapsed: (collapsed: boolean) => void;
 }) => {
     return (
-        <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-navy h-full flex flex-col shrink-0 transition-all duration-300 ease-in-out z-50`}>
+        <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-navy h-full flex flex-col shrink-0 transition-all duration-300 ease-in-out z-50 relative`}>
             
+            {/* Collapse Toggle Button - Floating High Contrast */}
+            <button 
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                className="absolute -right-4 top-8 w-8 h-8 bg-white text-brand rounded-full flex items-center justify-center shadow-xl hover:scale-110 hover:bg-brand hover:text-white transition-all z-[60] border-4 border-[#F8FAFC]"
+            >
+                {isSidebarCollapsed ? <ChevronRight size={14} strokeWidth={4} /> : <ChevronLeft size={14} strokeWidth={4} />}
+            </button>
+
             {/* Logo Area */}
-            <div className={`h-20 flex items-center transition-all duration-300 ${isSidebarCollapsed ? 'justify-center' : 'px-6'}`}>
+            <div className={`h-24 flex items-center transition-all duration-300 ${isSidebarCollapsed ? 'justify-center' : 'px-6'}`}>
                 <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-brand rounded-lg flex items-center justify-center shrink-0 shadow-lg shadow-brand/20">
-                        <Compass className="text-white" size={20} />
+                    <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-brand/30">
+                        <Compass className="text-white" size={22} />
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="flex flex-col">
-                            <span className="font-black text-lg text-slate-50 tracking-tighter leading-none">云舟</span>
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Intelligence</span>
+                            <span className="font-black text-xl text-slate-50 tracking-tighter leading-none">云舟</span>
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">Intelligence Hub</span>
                         </div>
                     )}
                 </div>
@@ -106,14 +113,8 @@ export const Sidebar = ({ currentView, setCurrentView, isSidebarCollapsed, setIs
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<Database size={18} />} label="数据中心" active={currentView === 'data-center'} onClick={() => setCurrentView('data-center')} />
             </div>
 
-            {/* Collapse Toggle & Profile Footer */}
-            <div className="p-4 border-t border-white/5 space-y-2">
-                <button 
-                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    className="w-full flex items-center justify-center py-2 text-slate-500 hover:text-brand transition-colors rounded-xl hover:bg-white/5"
-                >
-                    {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-                </button>
+            {/* Profile Footer */}
+            <div className="p-4 border-t border-white/5">
                 <div className={`flex items-center transition-all ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-2'} py-3 rounded-xl hover:bg-white/5 cursor-pointer`}>
                     <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center font-black text-brand text-[10px] shrink-0 border border-brand/20">M1</div>
                     {!isSidebarCollapsed && (
