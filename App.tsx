@@ -140,7 +140,6 @@ export const App = () => {
     const onDeleteRows = async (tableType: TableType, ids: any[]) => {
         try {
             await DB.deleteRows(`fact_${tableType}`, ids);
-            // 这里不在这里触发 loadMetadata，让子组件在 Chunk 循环后触发一次即可
         } catch (e) {
             addToast('error', '物理删除失败', '操作数据库时发生错误。');
             throw e;
@@ -148,7 +147,7 @@ export const App = () => {
     };
 
     const renderView = () => {
-        if (isAppLoading) return <div className="flex flex-col h-full items-center justify-center text-slate-400 font-black"><SyncIcon size={32} className={`mb-4 text-brand ${isCloudSyncing ? 'animate-spin' : ''}`} /><p className="tracking-widest uppercase text-xs">云舟引擎启航中...</p></div>;
+        if (isAppLoading) return <div className="flex flex-col h-full items-center justify-center text-slate-400 font-black"><SyncIcon size={40} className={`mb-4 text-brand ${isCloudSyncing ? 'animate-spin' : 'animate-pulse'}`} /><p className="tracking-[0.3em] uppercase text-[10px] font-black">云舟引擎启航中...</p></div>;
         
         const commonProps = { skus, shops, agents, schemas, addToast };
         switch (currentView) {
@@ -175,8 +174,8 @@ export const App = () => {
     return (
         <div className="flex h-screen bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden">
             <Sidebar currentView={currentView} setCurrentView={setCurrentView} isSidebarCollapsed={isSidebarCollapsed} setIsSidebarCollapsed={setIsSidebarCollapsed} />
-            <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0">
-                <main className="flex-1 overflow-auto relative no-scrollbar">
+            <div className="flex-1 flex flex-col h-full overflow-hidden relative min-w-0 transition-all duration-500 ease-in-out">
+                <main className="flex-1 overflow-auto relative no-scrollbar bg-slate-50/30">
                     {renderView()}
                 </main>
                 <ToastContainer toasts={toasts} />
