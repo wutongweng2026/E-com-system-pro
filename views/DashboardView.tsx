@@ -27,8 +27,10 @@ interface Diagnosis {
 
 const formatVal = (v: number, isFloat = false) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
 
-const DiagnosisCard = ({ d }: any) => (
-    <div className={`p-8 rounded-[32px] border snap-start shrink-0 w-full transition-all duration-500 hover:shadow-xl ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+// 诊断卡片组件 - 优化了内容换行显示逻辑
+// Fix: Added React.FC type to fix "Property 'key' does not exist" errors when rendering DiagnosisCard in a list
+const DiagnosisCard: React.FC<{ d: Diagnosis, isCompact?: boolean }> = ({ d, isCompact = false }) => (
+    <div className={`p-8 rounded-[32px] border shrink-0 w-full transition-all duration-500 hover:shadow-xl ${isCompact ? 'snap-start h-full flex flex-col justify-center' : ''} ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
         <div className="flex items-center gap-4 mb-4">
             {d.type === 'new_sku' ? <PackageSearch className="text-cyan-500" size={24}/> :
              d.type === 'asset' ? <SearchCode className="text-amber-500" size={24}/> :
@@ -38,11 +40,11 @@ const DiagnosisCard = ({ d }: any) => (
             <h4 className={`text-lg font-black uppercase tracking-tight ${d.severity === 'critical' ? 'text-rose-600' : 'text-slate-800'}`}>{d.title}</h4>
         </div>
         <p className="text-xs font-bold text-slate-500 leading-relaxed mb-6">{d.desc}</p>
-        <div className="bg-white/70 rounded-2xl p-5 border border-white/40 space-y-3 shadow-inner">
+        <div className="bg-white/70 rounded-2xl p-5 border border-white/40 space-y-3 shadow-inner overflow-y-auto no-scrollbar max-h-[160px]">
             {Object.entries(d.details).map(([k,v]) => (
                 <div key={k} className="flex flex-col gap-1 text-[10px] font-black uppercase">
                     <span className="text-slate-400 tracking-widest border-b border-slate-100 pb-1">{k}</span>
-                    <span className="text-slate-900 leading-relaxed break-all font-mono">{v}</span>
+                    <span className="text-slate-900 leading-relaxed break-all font-mono whitespace-pre-wrap">{v}</span>
                 </div>
             ))}
         </div>
@@ -296,7 +298,8 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     diag.push({
                         id: 'new_active', severity: 'success', type: 'new_sku', title: '新资产动销激活',
                         desc: `探测到 ${newlyActive.length} 个 SKU 在本对比周期内首次产生物理交易流水。`,
-                        details: { '激活清单': newlyActive.map(c => enabledSkusMap.get(c!)?.name || c).join('、') }
+                        // 优化排版：SKU 一行一条信息，采用换行符分隔
+                        details: { '激活清单': newlyActive.map(c => `• ${enabledSkusMap.get(c!)?.name || c}`).join('\n') }
                     });
                 }
                 if (curr.gmv.total < prev.gmv.total * 0.8 && prev.gmv.total > 0) {
@@ -369,13 +372,14 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                             <p className="text-[10px] text-slate-400 font-black uppercase mt-1 tracking-widest leading-none">Neural Decision Intelligence</p>
                         </div>
                     </div>
-                    <div className="flex-1 space-y-6 overflow-y-auto no-scrollbar mb-10 snap-y snap-mandatory">
+                    {/* 优化后的诊断室窗口：锁定高度，启用 Snap 滚动，实现一次只看一条 */}
+                    <div className="h-[340px] space-y-6 overflow-y-auto no-scrollbar mb-10 snap-y snap-mandatory scroll-smooth">
                         {diagnoses.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center bg-slate-50/50 rounded-[40px] border border-dashed border-slate-200 p-10 text-center opacity-40">
                                 <DatabaseZap size={48} className="text-slate-300 mb-6" />
                                 <p className="text-sm font-black text-slate-400 uppercase tracking-widest">物理链路平稳，系统暂无风险</p>
                             </div>
-                        ) : diagnoses.map(d => <DiagnosisCard key={d.id} d={d} />)}
+                        ) : diagnoses.map(d => <DiagnosisCard key={d.id} d={d} isCompact={true} />)}
                     </div>
                     <button onClick={() => setIsAllDiagnosesModalOpen(true)} className="w-full relative z-10 py-6 bg-slate-900 text-white rounded-[28px] font-black text-sm hover:bg-black transition-all flex items-center justify-center gap-4 shadow-2xl active:scale-95 uppercase tracking-[0.2em] mt-auto">查看全量审计矩阵 <ChevronRight size={18} /></button>
                 </div>
