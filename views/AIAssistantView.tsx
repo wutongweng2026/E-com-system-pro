@@ -23,7 +23,7 @@ export const AIAssistantView = ({ skus, shops, addToast }: { skus: ProductSKU[],
             const result = await callQwen(prompt);
             setChatResponse(result || '');
         } catch (err: any) { 
-            addToast('error', 'Qwen 引擎离线', err.message); 
+            addToast('error', 'Gemini 引擎离线', err.message); 
         } finally { setIsLoading(false); }
     };
 
@@ -31,8 +31,8 @@ export const AIAssistantView = ({ skus, shops, addToast }: { skus: ProductSKU[],
         <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10 pb-20">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">智能客服助手 (Qwen)</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Neural CS Copilot Powered by DashScope</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">智能客服助手 (Gemini)</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Neural CS Copilot Powered by Google Gemini</p>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-2xl">
                     <button onClick={() => setActiveTab('chat')} className={`px-8 py-2.5 rounded-xl text-xs font-black ${activeTab === 'chat' ? 'bg-white shadow-md' : 'text-slate-400'}`}>智能会话</button>

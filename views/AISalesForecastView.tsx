@@ -52,8 +52,8 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
         <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 销售预测中心 (Qwen 版)</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Demand Forecasting Powered by DashScope</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 销售预测中心 (Gemini 版)</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Demand Forecasting Powered by Google Gemini</p>
                 </div>
             </div>
 
@@ -84,7 +84,7 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
                 <div className="lg:col-span-8">
                     <div className="bg-white rounded-[48px] p-10 shadow-sm border border-slate-100 min-h-[500px]">
                         {isLoading ? (
-                            <div className="flex flex-col items-center justify-center h-[400px] text-slate-300 animate-pulse"><LoaderCircle className="animate-spin mb-4" size={40}/><p className="font-black text-xs uppercase tracking-widest">Qwen Is Thinking...</p></div>
+                            <div className="flex flex-col items-center justify-center h-[400px] text-slate-300 animate-pulse"><LoaderCircle className="animate-spin mb-4" size={40}/><p className="font-black text-xs uppercase tracking-widest">Gemini Is Thinking...</p></div>
                         ) : forecastResult ? (
                             <div className="animate-fadeIn space-y-10">
                                 <div className="grid grid-cols-2 gap-6">
@@ -96,7 +96,7 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
                                 <div className="bg-[#020617] rounded-[40px] p-10 text-white relative overflow-hidden">
                                     <div className="flex items-center gap-4 mb-8">
                                         <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center"><Bot size={24} /></div>
-                                        <h3 className="text-lg font-black tracking-tight">Qwen 算法诊断</h3>
+                                        <h3 className="text-lg font-black tracking-tight">Gemini 算法诊断</h3>
                                     </div>
                                     <div className="bg-white/5 rounded-[24px] p-8 border border-white/10">
                                         <p className="text-sm font-bold leading-relaxed mb-4 text-slate-100">{forecastResult.summary}</p>

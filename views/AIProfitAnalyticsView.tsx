@@ -146,7 +146,7 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
             const result = await callQwen(prompt);
             setAiInsight(result || "审计意见生成失败。");
         } catch (err: any) {
-            setAiInsight(`无法连接 Qwen 引擎: ${err.message}`);
+            setAiInsight(`无法连接 Gemini 引擎: ${err.message}`);
         } finally { setIsAiLoading(false); }
     };
 
@@ -163,7 +163,7 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">Qwen-Plus 盈利模型审计中</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">Gemini-3 Flash 盈利模型审计中</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 利润透视中心</h1>
                     <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Physical SKU & Store Level Profit Intelligence</p>
@@ -210,10 +210,10 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                 <div className="lg:col-span-4 bg-white rounded-[48px] p-10 flex flex-col relative overflow-hidden group">
                     <div className="flex items-center gap-4 mb-8">
                         <div className="w-14 h-14 rounded-3xl bg-brand flex items-center justify-center text-white shadow-lg"><Bot size={28} /></div>
-                        <h3 className="text-xl font-black tracking-tight">Qwen 利润诊断官</h3>
+                        <h3 className="text-xl font-black tracking-tight">Gemini 利润诊断官</h3>
                     </div>
                     <button onClick={handleAiAnalysis} disabled={isAiLoading} className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-xl hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50">
-                        {isAiLoading ? <LoaderCircle size={20} className="animate-spin" /> : <TrendingUp size={20} />} 启动 Qwen 审计建议
+                        {isAiLoading ? <LoaderCircle size={20} className="animate-spin" /> : <TrendingUp size={20} />} 启动 Gemini 审计建议
                     </button>
                     <div className="mt-8 flex-1 bg-slate-50/50 rounded-[32px] p-8 border border-slate-100 overflow-y-auto no-scrollbar shadow-inner">
                         {isAiLoading ? <p className="text-xs text-slate-400 font-bold animate-pulse">正在穿透物理层进行多维利润审计...</p> : aiInsight || <p className="text-xs text-slate-300 italic text-center py-20">点击上方按钮获取 AI 诊断意见</p>}

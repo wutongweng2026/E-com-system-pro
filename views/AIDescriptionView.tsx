@@ -94,10 +94,10 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">百炼 Qwen 模型训练中</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">Gemini-3 Pro 模型训练中</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 文案实验室</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Neural Copywriting Hub Powered by Alibaba Cloud</p>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Neural Copywriting Hub Powered by Google Gemini</p>
                 </div>
             </div>
 
@@ -140,7 +140,7 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
 
                         <button onClick={handleGenerate} disabled={isLoading} className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm hover:bg-[#5da035] shadow-2xl flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 uppercase tracking-widest">
                             {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Zap size={20} />}
-                            生成 Qwen 营销方案
+                            生成 Gemini 营销方案
                         </button>
                     </div>
                 </div>
@@ -152,7 +152,7 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
                                 <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-brand border border-slate-100 shadow-inner">
                                     <FileText size={28} />
                                 </div>
-                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">预览 Qwen 产出结果</h3>
+                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">预览 Gemini 产出结果</h3>
                             </div>
                             {result && (
                                 <button onClick={handleCopy} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-xs border ${copyStatus === 'copied' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-500'}`}>
@@ -165,7 +165,7 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
                             {isLoading ? (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-300">
                                     <div className="w-20 h-20 border-4 border-slate-100 border-t-brand rounded-full animate-spin mb-8"></div>
-                                    <p className="font-black text-xs uppercase tracking-[0.4em]">Qwen Processing...</p>
+                                    <p className="font-black text-xs uppercase tracking-[0.4em]">Gemini Processing...</p>
                                 </div>
                             ) : result ? (
                                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 h-full">
@@ -181,13 +181,13 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-200">
-                                    <p className="font-black text-sm uppercase tracking-[0.3em]">Ready to ignite Qwen</p>
+                                    <p className="font-black text-sm uppercase tracking-[0.3em]">Ready to ignite Gemini</p>
                                 </div>
                             )}
                             {error && <div className="mt-8 p-6 bg-rose-50 text-rose-500 rounded-3xl text-xs font-bold flex items-center gap-3"><AlertCircle size={20}/> {error}</div>}
                         </div>
                         <div className="mt-12 pt-8 border-t border-slate-50 text-center shrink-0">
-                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Content Intelligence Powered by Alibaba Cloud Bailian</p>
+                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Content Intelligence Powered by Google Gemini</p>
                         </div>
                     </div>
                 </div>

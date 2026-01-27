@@ -38,8 +38,8 @@ export const AIAdImageView = ({ skus }: AIAdImageViewProps) => {
         <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10 pb-20">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 视觉创意舱 (万相版)</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Visual Generation Powered by Alibaba Wanx</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 视觉创意舱 (Gemini 版)</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Visual Generation Powered by Google Gemini</p>
                 </div>
             </div>
 
@@ -58,7 +58,7 @@ export const AIAdImageView = ({ skus }: AIAdImageViewProps) => {
                             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full h-32 bg-slate-50 border border-slate-200 rounded-[32px] px-6 py-5 text-xs font-bold text-slate-700 outline-none focus:border-brand shadow-inner resize-none" />
                         </div>
                         <button onClick={handleGenerate} disabled={isLoading || !prompt} className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm hover:bg-[#5da035] shadow-2xl transition-all disabled:opacity-50">
-                            {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />} 启动万相渲染
+                            {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />} 启动 Gemini 渲染
                         </button>
                     </div>
                 </div>
@@ -68,7 +68,7 @@ export const AIAdImageView = ({ skus }: AIAdImageViewProps) => {
                         {isLoading ? (
                             <div className="flex flex-col items-center justify-center h-full text-slate-300">
                                 <div className="w-24 h-24 border-4 border-slate-100 border-t-brand rounded-full animate-spin mb-10"></div>
-                                <p className="font-black text-xs uppercase tracking-[0.4em]">Wanx Rendering...</p>
+                                <p className="font-black text-xs uppercase tracking-[0.4em]">Gemini Rendering...</p>
                             </div>
                         ) : imgUrl ? (
                             <img src={imgUrl} className="max-w-full max-h-full rounded-[32px] shadow-2xl border-8 border-white object-contain bg-slate-50" alt="Generated" />

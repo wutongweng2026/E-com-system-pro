@@ -1,52 +1,65 @@
 /**
- * 阿里云百炼 (DashScope) 统一调度引擎
- * 采用 OpenAI 兼容模式
+ * Google Gemini API 统一调度引擎
  */
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize Gemini API client
+// Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const AI_CONFIG = {
-    endpoint: '/api/generate', // 通过 Vercel Serverless Proxy 转发，保障安全
-    model: 'qwen-plus', 
+    model: 'gemini-3-flash-preview', 
+    imageModel: 'gemini-2.5-flash-image'
 };
 
+/**
+ * 通用文本生成接口
+ * @param prompt 提示词
+ * @param isJson 是否强制返回 JSON
+ */
 export async function callQwen(prompt: string, isJson: boolean = false) {
-    // 生产环境下通过后端 API 转发，本地环境下直接调用（需配置跨域）
-    const response = await fetch(AI_CONFIG.endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            model: AI_CONFIG.model,
-            messages: [
-                { role: 'system', content: isJson ? '你是一个专业的数据分析专家，必须严格返回 JSON 对象，不要包含任何 Markdown 标记。' : '你是一个资深的电商战略运营专家。' },
-                { role: 'user', content: prompt }
-            ],
-            ...(isJson ? { response_format: { type: 'json_object' } } : {})
-        })
+    // Using generateContent for text answers
+    const response = await ai.models.generateContent({
+        model: AI_CONFIG.model,
+        contents: prompt,
+        config: {
+            systemInstruction: isJson 
+                ? '你是一个专业的数据分析专家，必须严格返回 JSON 对象，不要包含任何 Markdown 标记。' 
+                : '你是一个资深的电商战略运营专家。',
+            responseMimeType: isJson ? "application/json" : "text/plain"
+        }
     });
 
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(`百炼引擎响应异常: ${err.error?.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    // 兼容 OpenAI 格式
-    return data.choices[0].message.content;
+    // The simplest and most direct way to get the generated text content is by accessing the .text property
+    return response.text;
 }
 
 /**
- * 阿里云百炼 - 通义万相 (Wanx-v1) 图片生成
- * 注意：万相 API 需要异步轮询，此函数封装了提交与查询逻辑
+ * Google Gemini - 图像生成 (gemini-2.5-flash-image)
+ * @param prompt 创意描述词
  */
 export async function generateWanxImage(prompt: string) {
-    const response = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+    // Generate images using gemini-2.5-flash-image by default
+    const response = await ai.models.generateContent({
+        model: AI_CONFIG.imageModel,
+        contents: {
+            parts: [
+                {
+                    text: prompt,
+                },
+            ],
+        },
     });
 
-    if (!response.ok) throw new Error("视觉渲染任务提交失败");
-    const result = await response.json();
-    return result.url;
+    // The output response may contain both image and text parts; iterate through all parts to find the image part.
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            const base64EncodeString: string = part.inlineData.data;
+            return `data:${part.inlineData.mimeType};base64,${base64EncodeString}`;
+        } else if (part.text) {
+            console.log(part.text);
+        }
+    }
+    
+    throw new Error("未能生成图像资产。");
 }

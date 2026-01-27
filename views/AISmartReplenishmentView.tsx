@@ -249,11 +249,11 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             3.提供2条优化库存周转率的战略建议。
             专业、果断，200字以内。`;
 
-            // 使用 Qwen 引擎替代 Gemini
+            // Using Gemini engine via refactored callQwen
             const text = await callQwen(prompt);
-            setAiInsight(text || "Qwen 供应链审计报告生成失败。");
+            setAiInsight(text || "Gemini 供应链审计报告生成失败。");
         } catch (e: any) {
-            setAiInsight(`无法连接 Qwen 引擎: ${e.message}`);
+            setAiInsight(`无法连接 Gemini 引擎: ${e.message}`);
         } finally {
             setIsAiLoading(false);
         }
