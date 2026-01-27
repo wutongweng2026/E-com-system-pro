@@ -1,6 +1,5 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Binoculars, ShieldAlert, Zap, Bot, Target, Search, BarChart3, Globe, Plus, Store, X, ChevronDown, CheckSquare, Square, TrendingUp, Activity, LayoutDashboard, Database, RefreshCw, Trash2, Edit3, ArrowUp, ArrowDown, ChevronRight, Scale } from 'lucide-react';
+import { Binoculars, ShieldAlert, Zap, Bot, Target, Search, BarChart3, Globe, Plus, Store, X, ChevronDown, CheckSquare, Square, TrendingUp, Activity, LayoutDashboard, Database, RefreshCw, Trash2, Edit3, ArrowUp, ArrowDown, ChevronRight, Scale, Calculator } from 'lucide-react';
 import { MonitoredCompetitorShop, CompetitorGroup, CompetitorProductSpec } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, CloudSync as SyncIcon } from 'lucide-react';
 
@@ -118,6 +117,13 @@ export const App = () => {
         }
     };
 
+    const handleUpdateSKU = async (s: ProductSKU) => {
+        const n = skus.map(x => x.id === s.id ? s : x);
+        await DB.saveConfig('dim_skus', n);
+        await loadMetadata();
+        return true;
+    };
+
     const renderView = () => {
         if (isAppLoading) return (
             <div className="flex flex-col h-full items-center justify-center text-slate-400 font-black bg-white">
@@ -139,18 +145,15 @@ export const App = () => {
                     {...commonProps} 
                     skuLists={skuLists} 
                     onAddNewSKU={async (s)=> { const n = [...skus, {...s, id: Date.now().toString()}]; await handleBulkSave('dim_skus', n, 'SKU'); return true; }} 
-                    onUpdateSKU={async (s)=> { const n = skus.map(x=>x.id===s.id?s:x); await handleBulkSave('dim_skus', n, 'SKU'); return true; }} 
+                    onUpdateSKU={handleUpdateSKU} 
                     onDeleteSKU={async (id)=> { const n = skus.filter(x=>x.id!==id); await handleBulkSave('dim_skus', n, 'SKU'); }} 
                     onBulkAddSKUs={async (newList)=> { 
-                        // 实现 Upsert 逻辑：如果 code 存在则覆盖，不存在则新增
                         const updatedSkus = [...skus];
                         newList.forEach(newItem => {
                             const index = updatedSkus.findIndex(s => s.code === newItem.code);
                             if (index !== -1) {
-                                // 找到现有 SKU，保留原始 ID，合并新数据
                                 updatedSkus[index] = { ...updatedSkus[index], ...newItem };
                             } else {
-                                // 未找到，作为新 SKU 插入并分配 ID
                                 updatedSkus.push({ ...newItem, id: Math.random().toString(36).substr(2, 9) });
                             }
                         });
@@ -192,7 +195,7 @@ export const App = () => {
                 />
             );
             case 'ai-profit-analytics': return <AIProfitAnalyticsView {...commonProps} />;
-            case 'ai-smart-replenishment': return <AISmartReplenishmentView shangzhiData={factTables.shangzhi} onUpdateSKU={async ()=>true} {...commonProps} />;
+            case 'ai-smart-replenishment': return <AISmartReplenishmentView shangzhiData={factTables.shangzhi} onUpdateSKU={handleUpdateSKU} {...commonProps} />;
             case 'ai-quoting': return <AIQuotingView quotingData={quotingData} onUpdate={async (d:any) => { setQuotingData(d); await DB.saveConfig('quoting_data', d); }} addToast={addToast} />;
             case 'ai-description': return <AIDescriptionView skus={skus} />;
             case 'ai-sales-forecast': return <AISalesForecastView skus={skus} />;
@@ -204,8 +207,8 @@ export const App = () => {
                     compShops={compShops} 
                     compGroups={compGroups} 
                     shangzhiData={factTables.shangzhi}
-                    onUpdateCompShops={async (data) => { setCompShops(data); await DB.saveConfig('comp_shops', data); }}
-                    onUpdateCompGroups={async (data) => { setCompGroups(data); await DB.saveConfig('comp_groups', data); }}
+                    onUpdateCompShops={async (data) => { setCompShops(data); await DB.saveConfig('comp_shops', data); await loadMetadata(); }}
+                    onUpdateCompGroups={async (data) => { setCompGroups(data); await DB.saveConfig('comp_groups', data); await loadMetadata(); }}
                     addToast={addToast} 
                 />
             );
