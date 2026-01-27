@@ -428,13 +428,13 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                 </div>
             </div>
 
-            {/* Filter Panel - Command Style */}
-            <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-10 relative overflow-hidden flex flex-wrap items-end gap-6">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+            {/* Filter Panel - Command Style. Removed overflow-hidden to allow dropdowns to show */}
+            <div className="bg-white rounded-[40px] shadow-xl border border-slate-100 p-10 relative flex flex-wrap items-end gap-6">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
                 
                 {/* Date Selection */}
                 <div className="space-y-2 min-w-[280px] relative z-10">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">设定审计周期</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">时间范围</label>
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 shadow-inner focus-within:border-brand transition-all">
                         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-transparent border-none text-[11px] font-black text-slate-700 px-2 outline-none" />
                         <span className="text-slate-300 font-black">-</span>
@@ -443,8 +443,8 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                 </div>
 
                 {/* Shop Filter */}
-                <div className="space-y-2 relative z-10" ref={shopDropdownRef}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">受控店铺范围</label>
+                <div className="space-y-2 relative z-20" ref={shopDropdownRef}>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">店铺</label>
                     <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-xs font-black text-slate-700 flex justify-between items-center shadow-sm hover:bg-slate-100 transition-all">
                         <span className="truncate">{selectedShopIds.length === 0 ? '全域探测' : `已选 ${selectedShopIds.length} 个`}</span>
                         <ChevronDown size={14} className="text-slate-400" />
@@ -463,8 +463,8 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                 </div>
 
                 {/* SKU List Filter */}
-                <div className="space-y-2 relative z-10" ref={listDropdownRef}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">逻辑分层清单</label>
+                <div className="space-y-2 relative z-20" ref={listDropdownRef}>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">分层清单</label>
                     <button onClick={() => setIsListDropdownOpen(!isListDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-xs font-black text-slate-700 flex justify-between items-center shadow-sm hover:bg-slate-100 transition-all">
                         <span className="truncate">{selectedListIds.length === 0 ? '不限清单' : `已选 ${selectedListIds.length} 个`}</span>
                         <ChevronDown size={14} className="text-slate-400" />
