@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { TrendingUp, BarChart, ShoppingBag, Activity, CreditCard, Target, ArrowUp, ArrowDown, Zap, Sparkles, Bot as BotIcon, ChevronRight, Calendar, Filter, AlertTriangle, ShieldAlert, PackageSearch, Rocket, Coins, Flame, Headset } from 'lucide-react';
+import { TrendingUp, BarChart, ShoppingBag, Activity, CreditCard, Target, ArrowUp, ArrowDown, Zap, Sparkles, Bot as BotIcon, ChevronRight, Calendar, Filter, AlertTriangle, ShieldAlert, PackageSearch, Rocket, Coins, Flame, Headset, CalendarX, DatabaseZap, Star } from 'lucide-react';
 import { DB } from '../lib/db';
 import { ProductSKU, Shop } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
@@ -28,10 +28,11 @@ interface DailyRecord {
 
 interface Diagnosis {
     id: string;
-    type: 'asset' | 'stock_severe' | 'stock_warning' | 'explosive' | 'ad_star' | 'ad_waste' | 'cs_alert';
+    type: 'asset' | 'stock_severe' | 'stock_warning' | 'explosive' | 'ad_star' | 'ad_waste' | 'cs_alert' | 'data_gap' | 'high_potential';
     title: string;
     desc: string;
-    details: any;
+    details: Record<string, string | number>;
+    severity: 'critical' | 'warning' | 'info' | 'success';
 }
 
 export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], shops: Shop[], addToast: any }) => {
@@ -60,7 +61,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
         const map = new Map<string, string>();
         const shopIdToMode = new Map(shops.map(s => [s.id, s.mode]));
         skus.forEach(s => {
-            const mode = shopIdToMode.get(s.shopId);
+            const mode = s.mode || shopIdToMode.get(s.shopId);
             if (mode) map.set(s.code, mode);
         });
         return map;
@@ -69,6 +70,12 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
     const enabledSkuCodes = useMemo(() => {
         return new Set(skus.filter(s => s.isStatisticsEnabled).map(s => s.code));
     }, [skus]);
+
+    // 判定是否属于自营统计范畴的关键逻辑
+    const isSelfOperated = (mode: string | undefined): boolean => {
+        if (!mode) return true; // 缺省默认为自营
+        return ['自营', '入仓', 'LBP', 'SOPL'].includes(mode);
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -94,16 +101,21 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
             const prevStartObj = new Date(prevEndObj);
             prevStartObj.setDate(prevStartObj.getDate() - (diffDays - 1));
 
+            const now = new Date();
+            const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
             try {
-                const [currSz, currJzt, prevSz, prevJzt, currCs] = await Promise.all([
+                const [currSz, currJzt, prevSz, prevJzt, currCs, monthSz, monthJzt] = await Promise.all([
                     DB.getRange('fact_shangzhi', start, end),
                     DB.getRange('fact_jingzhuntong', start, end),
                     DB.getRange('fact_shangzhi', prevStartObj.toISOString().split('T')[0], prevEndObj.toISOString().split('T')[0]),
                     DB.getRange('fact_jingzhuntong', prevStartObj.toISOString().split('T')[0], prevEndObj.toISOString().split('T')[0]),
-                    DB.getRange('fact_customer_service', start, end)
+                    DB.getRange('fact_customer_service', start, end),
+                    DB.getRange('fact_shangzhi', firstDayOfMonth, yesterdayStr),
+                    DB.getRange('fact_jingzhuntong', firstDayOfMonth, yesterdayStr)
                 ]);
 
-                // --- 1. KPI 计算逻辑 ---
                 const calculateStats = (sz: any[], jzt: any[]) => {
                     const stats = { gmv: { total: 0, self: 0, pop: 0 }, ca: { total: 0, self: 0, pop: 0 }, spend: { total: 0, self: 0, pop: 0 } };
                     sz.forEach(row => {
@@ -113,7 +125,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                             const items = Number(row.paid_items) || 0;
                             const mode = skuToModeMap.get(code) || (shops.find(s => s.name === row.shop_name)?.mode) || '自营';
                             stats.gmv.total += amount; stats.ca.total += items;
-                            if (mode === '自营') { stats.gmv.self += amount; stats.ca.self += items; }
+                            if (isSelfOperated(mode)) { stats.gmv.self += amount; stats.ca.self += items; }
                             else { stats.gmv.pop += amount; stats.ca.pop += items; }
                         }
                     });
@@ -123,7 +135,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                             const cost = Number(row.cost) || 0;
                             const mode = skuToModeMap.get(code) || (shops.find(s => s.name === row.shop_name)?.mode) || '自营';
                             stats.spend.total += cost;
-                            if (mode === '自营') stats.spend.self += cost; else stats.spend.pop += cost;
+                            if (isSelfOperated(mode)) stats.spend.self += cost; else stats.spend.pop += cost;
                         }
                     });
                     return stats;
@@ -132,7 +144,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 const currentStats = calculateStats(currSz, currJzt);
                 const previousStats = calculateStats(prevSz, prevJzt);
                 
-                // 每日趋势聚合
                 const dailyAgg: Record<string, { gmv: any, ca: any, spend: any }> = {};
                 for(let i=0; i<diffDays; i++) {
                     const d = new Date(startDateObj); d.setDate(d.getDate() + i);
@@ -143,7 +154,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     const code = getSkuIdentifier(r);
                     if (code && enabledSkuCodes.has(code) && dailyAgg[r.date]) {
                         const mode = skuToModeMap.get(code) || '自营';
-                        if (mode === '自营') { dailyAgg[r.date].gmv.self += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.self += Number(r.paid_items) || 0; }
+                        if (isSelfOperated(mode)) { dailyAgg[r.date].gmv.self += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.self += Number(r.paid_items) || 0; }
                         else { dailyAgg[r.date].gmv.pop += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.pop += Number(r.paid_items) || 0; }
                     }
                 });
@@ -151,7 +162,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     const code = getSkuIdentifier(r);
                     if (code && enabledSkuCodes.has(code) && dailyAgg[r.date]) {
                         const mode = skuToModeMap.get(code) || '自营';
-                        if (mode === '自营') dailyAgg[r.date].spend.self += Number(r.cost) || 0; else dailyAgg[r.date].spend.pop += Number(r.cost) || 0;
+                        if (isSelfOperated(mode)) dailyAgg[r.date].spend.self += Number(r.cost) || 0; else dailyAgg[r.date].spend.pop += Number(r.cost) || 0;
                     }
                 });
 
@@ -172,73 +183,57 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     ca: { total: { current: currentStats.ca.total, previous: previousStats.ca.total }, self: { current: currentStats.ca.self, previous: previousStats.ca.self }, pop: { current: currentStats.ca.pop, previous: previousStats.ca.pop } },
                     spend: { total: { current: currentStats.spend.total, previous: previousStats.spend.total }, self: { current: currentStats.spend.self, previous: previousStats.spend.self }, pop: { current: currentStats.spend.pop, previous: previousStats.spend.pop } },
                     roi: { 
-                        total: { current: currentStats.spend.total > 0 ? currentStats.gmv.total / currentStats.spend.total : 0, previous: previousStats.spend.total > 0 ? previousStats.gmv.total / previousStats.spend.total : 0 },
-                        self: { current: currentStats.spend.self > 0 ? currentStats.gmv.self / currentStats.spend.self : 0, previous: previousStats.spend.self > 0 ? previousStats.gmv.self / previousStats.spend.self : 0 },
-                        pop: { current: currentStats.spend.pop > 0 ? currentStats.gmv.pop / currentStats.spend.pop : 0, previous: previousStats.spend.pop > 0 ? previousStats.gmv.pop / previousStats.spend.pop : 0 }
+                        total: { current: currentStats.spend.total > 0 ? currentStats.gmv.total / currentStats.spend.total : 0, previous: previousStats.spend.total > 0 ? currentStats.gmv.total / previousStats.spend.total : 0 },
+                        self: { current: currentStats.spend.self > 0 ? currentStats.gmv.self / currentStats.spend.self : 0, previous: previousStats.spend.self > 0 ? currentStats.gmv.self / previousStats.spend.self : 0 },
+                        pop: { current: currentStats.spend.pop > 0 ? currentStats.gmv.pop / currentStats.spend.pop : 0, previous: previousStats.spend.pop > 0 ? currentStats.gmv.pop / previousStats.spend.pop : 0 }
                     }
                 });
 
-                // --- 2. 深度 AI 诊断逻辑 ---
                 const newDiagnoses: Diagnosis[] = [];
-                const managedShopNames = new Set(shops.map(s => s.name));
                 const knownSkuCodes = new Set(skus.map(s => s.code));
-
-                // A. 资产失联探测 (逻辑已增强：仅检查今日/昨日活跃 SKU)
-                const activeCodesInSz = new Set(currSz.map(r => getSkuIdentifier(r)).filter(Boolean));
-                activeCodesInSz.forEach(code => {
-                    const row = currSz.find(r => getSkuIdentifier(r) === code);
-                    if (code && managedShopNames.has(row?.shop_name) && !knownSkuCodes.has(code)) {
-                        newDiagnoses.push({ id: `asset-${code}`, type: 'asset', title: '资产同步异常', desc: `发现未录入 SKU: ${code}`, details: { shop: row.shop_name, name: row.product_name, cat: row.category_l3 } });
+                const activeCodes = new Set(currSz.map(r => getSkuIdentifier(r)).filter(Boolean));
+                activeCodes.forEach(code => {
+                    if (code && !knownSkuCodes.has(code)) {
+                        const row = currSz.find(r => getSkuIdentifier(r) === code);
+                        newDiagnoses.push({ id: `asset-${code}`, type: 'asset', severity: 'critical', title: '资产映射缺失', desc: `物理层发现活跃 SKU [${code}]，但资产库未登记。`, details: { '店铺': row.shop_name, '名称': row.product_name, '操作': '前往资产名录录入' } });
                     }
                 });
 
-                // B. 京东入仓预警 (7/15日销量对齐)
-                const sales15dMap = new Map<string, number>();
-                currSz.forEach(r => { const c = getSkuIdentifier(r); if(c) sales15dMap.set(c, (sales15dMap.get(c) || 0) + (Number(r.paid_items) || 0)); });
-                skus.filter(s => s.mode === '入仓').forEach(s => {
-                    const s15 = sales15dMap.get(s.code) || 0;
-                    const s7 = s15 * 0.46;
-                    const stock = s.warehouseStock || 0;
-                    if (stock < s7 && s15 > 0) newDiagnoses.push({ id: `s-sev-${s.code}`, type: 'stock_severe', title: '库存熔断警告', desc: `${s.model || s.name} 即将断货`, details: { stock, s7: Math.round(s7) } });
-                    else if (stock < s15 && s15 > 0) newDiagnoses.push({ id: `s-war-${s.code}`, type: 'stock_warning', title: '建议补货', desc: `${s.model || s.name} 库存周转受压`, details: { stock, s15: Math.round(s15) } });
-                });
+                const szDates = new Set(monthSz.map(r => r.date));
+                const jztDates = new Set(monthJzt.map(r => r.date));
+                const missingSz: string[] = [];
+                const missingJzt: string[] = [];
+                let checkDate = new Date(firstDayOfMonth);
+                const limitDate = new Date(yesterdayStr);
+                while(checkDate <= limitDate) {
+                    const dStr = checkDate.toISOString().split('T')[0];
+                    if (!szDates.has(dStr)) missingSz.push(dStr);
+                    if (!jztDates.has(dStr)) missingJzt.push(dStr);
+                    checkDate.setDate(checkDate.getDate() + 1);
+                }
+                if (missingSz.length > 0) newDiagnoses.push({ id: 'gap-sz', type: 'data_gap', severity: 'warning', title: '商智记录断层', desc: `本月探测到 ${missingSz.length} 个自然日数据缺失。`, details: { '缺失节点': missingSz.slice(-3).join(', ') + (missingSz.length > 3 ? '...' : '') } });
+                if (missingJzt.length > 0) newDiagnoses.push({ id: 'gap-jzt', type: 'data_gap', severity: 'warning', title: '广告记录断层', desc: `本月缺失 ${missingJzt.length} 天消耗明细。`, details: { '缺失节点': missingJzt.slice(-3).join(', ') + (missingJzt.length > 3 ? '...' : '') } });
 
-                // C. 爆款潜力识别
-                const prevGmvMap = new Map<string, number>();
-                prevSz.forEach(r => { const c = getSkuIdentifier(r); if(c) prevGmvMap.set(c, (prevGmvMap.get(c) || 0) + (Number(r.paid_amount) || 0)); });
-                const currGmvMap = new Map<string, number>();
-                currSz.forEach(r => { const c = getSkuIdentifier(r); if(c) currGmvMap.set(c, (currGmvMap.get(c) || 0) + (Number(r.paid_amount) || 0)); });
-
-                currGmvMap.forEach((val, code) => {
-                    const prev = prevGmvMap.get(code) || 0;
-                    if (prev > 0 && (val - prev) / prev > 0.4 && val > 5000) {
-                        const sInfo = skus.find(s => s.code === code);
-                        newDiagnoses.push({ id: `exp-${code}`, type: 'explosive', title: '潜在爆款发现', desc: `${sInfo?.model || '未知SKU'} GMV 环比暴涨 ${Math.round(((val-prev)/prev)*100)}%`, details: { gmv: val } });
-                    }
-                });
-
-                // D. 投放预算建议 (高 ROI 扩量)
-                const skuCostMap = new Map<string, number>();
-                currJzt.forEach(r => { const c = getSkuIdentifier(r); if(c) skuCostMap.set(c, (skuCostMap.get(c) || 0) + (Number(r.cost) || 0)); });
-                skuCostMap.forEach((cost, code) => {
-                    const gmv = currGmvMap.get(code) || 0;
-                    const roi = cost > 0 ? gmv / cost : 0;
-                    if (roi > 8 && cost < 1000) {
-                        newDiagnoses.push({ id: `ad-star-${code}`, type: 'ad_star', title: '广告扩量建议', desc: `SKU ${code} ROI 极高(${roi.toFixed(1)})，建议增加出价`, details: { roi, cost } });
-                    } else if (roi < 1.2 && cost > 2000) {
-                        newDiagnoses.push({ id: `ad-waste-${code}`, type: 'ad_waste', title: '投放损耗预警', desc: `SKU ${code} 处于低效引流状态(ROI: ${roi.toFixed(1)})`, details: { roi, cost } });
-                    }
-                });
-
-                // E. 客服效率预警
-                if (currCs.length > 0) {
-                    const avgResponse = currCs.reduce((acc, r) => acc + (Number(r.avg_first_response_time) || 0), 0) / currCs.length;
-                    if (avgResponse > 45) {
-                        newDiagnoses.push({ id: 'cs-risk', type: 'cs_alert', title: '服务响应风险', desc: `全店平均首响 ${Math.round(avgResponse)}s，远超安全阈值`, details: { avg: avgResponse } });
-                    }
+                skuGmvMapForEach: {
+                    const skuGmvMap = new Map<string, number>();
+                    currSz.forEach(r => { const c = getSkuIdentifier(r); if(c) skuGmvMap.set(c, (skuGmvMap.get(c) || 0) + (Number(r.paid_amount) || 0)); });
+                    const skuPrevGmvMap = new Map<string, number>();
+                    prevSz.forEach(r => { const c = getSkuIdentifier(r); if(c) skuPrevGmvMap.set(c, (skuPrevGmvMap.get(c) || 0) + (Number(r.paid_amount) || 0)); });
+                    skuGmvMap.forEach((gmv, code) => {
+                        const prevGmv = skuPrevGmvMap.get(code) || 0;
+                        const growth = prevGmv > 0 ? (gmv - prevGmv) / prevGmv : 0;
+                        const row = currSz.find(r => getSkuIdentifier(r) === code);
+                        const cvr = Number(row?.paid_conversion_rate) || 0;
+                        if (growth > 0.4 && cvr > 0.08 && gmv > 8000) newDiagnoses.push({ id: `exp-${code}`, type: 'explosive', severity: 'success', title: '核心爆款爆发', desc: `SKU [${code}] 处于极速上升期。`, details: { '环比增长': `${(growth*100).toFixed(0)}%`, '转化率': `${(cvr*100).toFixed(1)}%` } });
+                        else if (cvr > 0.12 && gmv < 3000 && gmv > 500) newDiagnoses.push({ id: `pot-${code}`, type: 'high_potential', severity: 'info', title: '高转化潜力识别', desc: `小规模高转化 SKU 表现优异。`, details: { '转化率': `${(cvr*100).toFixed(1)}%`, 'GMV': `¥${gmv.toLocaleString()}` } });
+                    });
                 }
 
-                setDiagnoses(newDiagnoses);
+                setDiagnoses(newDiagnoses.sort((a,b) => {
+                    const order = { critical: 0, warning: 1, info: 2, success: 3 };
+                    return order[a.severity] - order[b.severity];
+                }));
+
             } catch (e) { console.error(e); }
             finally { setTimeout(() => setIsLoading(false), 300); }
         };
@@ -247,29 +242,27 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
     return (
         <div className="p-6 md:p-10 w-full animate-fadeIn space-y-10">
-            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">AI 战略指挥官已上线</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">全向维度穿透中</span>
                         {enabledSkuCodes.size > 0 && (
-                            <span className="bg-brand/10 text-brand px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-tight flex items-center gap-1.5">
-                                <Filter size={10} /> 监控中: {enabledSkuCodes.size} SKU
+                            <span className="bg-brand/10 text-brand px-2.5 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm">
+                                <Filter size={10} /> 已锁定 {enabledSkuCodes.size} SKU
                             </span>
                         )}
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">全域运营中枢</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Intelligent Operations Command & Neural Diagnostic Engine</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight italic">战略指挥控制台</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic opacity-60">Dimensional Performance Dashboard & AI Decision Engine</p>
                 </div>
-                <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200">
-                    {[{id:'7d',l:'近7天'},{id:'30d',l:'近30天'}].map(i => (
-                        <button key={i.id} onClick={() => setRangeType(i.id as RangeType)} className={`px-5 py-1.5 rounded-lg text-xs font-black transition-all ${rangeType === i.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>{i.l}</button>
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner border border-slate-200">
+                    {[{id:'7d',l:'近 7 天'},{id:'30d',l:'近 30 天'}].map(i => (
+                        <button key={i.id} onClick={() => setRangeType(i.id as RangeType)} className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${rangeType === i.id ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>{i.l}</button>
                     ))}
                 </div>
             </div>
 
-            {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                 <KPICard isActive={activeMetric === 'gmv'} onClick={() => setActiveMetric('gmv')} title="GMV" value={data.gmv} prefix="¥" icon={<ShoppingBag size={20}/>} color="text-brand" bg="bg-brand/5" isLoading={isLoading} />
                 <KPICard isActive={activeMetric === 'ca'} onClick={() => setActiveMetric('ca')} title="CA" value={data.ca} icon={<Activity size={20}/>} color="text-blue-600" bg="bg-blue-50" isLoading={isLoading} />
@@ -278,99 +271,151 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-                 <div className="xl:col-span-8 bg-white rounded-[40px] p-10 border border-slate-100 shadow-sm min-h-[550px] flex flex-col">
-                    <div className="flex items-center justify-between mb-10 shrink-0">
+                <div className="xl:col-span-8 bg-white rounded-[48px] p-10 border border-slate-100 shadow-sm min-h-[560px] flex flex-col group/chart">
+                    <div className="flex items-center justify-between mb-12 shrink-0">
                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-brand border border-slate-100"><TrendingUp size={24} /></div>
+                            <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-brand border border-slate-100 group-hover/chart:rotate-3 transition-transform">
+                                <TrendingUp size={28} />
+                            </div>
                             <div>
-                                <h3 className="text-xl font-black text-slate-800 tracking-tight">{activeMetric.toUpperCase()} 业务增长趋势</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Physical Performance Stream</p>
+                                <h3 className="text-xl font-black text-slate-800 tracking-tight">{activeMetric.toUpperCase()} 业务增长趋势流</h3>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Physical Performance Temporal Stream</p>
                             </div>
                         </div>
-                        <div className="flex gap-6">
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-brand"></div><span className="text-[10px] font-black text-slate-500 uppercase">自营</span></div>
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div><span className="text-[10px] font-black text-slate-500 uppercase">POP</span></div>
+                        <div className="flex gap-8">
+                            <div className="flex items-center gap-2.5"><div className="w-3.5 h-3.5 rounded-full bg-brand shadow-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase">自营模式</span></div>
+                            <div className="flex items-center gap-2.5"><div className="w-3.5 h-3.5 rounded-full bg-blue-500 shadow-sm"></div><span className="text-[10px] font-black text-slate-500 uppercase">POP 模式</span></div>
                         </div>
                     </div>
                     <div className="flex-1 relative">
-                        {isLoading ? <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 animate-pulse"><Activity className="mb-2"/><p className="text-[10px] font-black uppercase">计算中...</p></div> : allTrends[activeMetric].length > 0 ? <TrendVisual data={allTrends[activeMetric]} isFloat={activeMetric === 'roi'} /> : <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 opacity-40"><BarChart size={48} className="mb-4"/><p className="text-xs font-bold uppercase">无数据记录</p></div>}
+                        {isLoading ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
+                                <Activity className="animate-pulse mb-3" size={32} />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Neural Processing...</p>
+                            </div>
+                        ) : allTrends[activeMetric].length > 0 ? (
+                            <TrendVisual data={allTrends[activeMetric]} isFloat={activeMetric === 'roi'} />
+                        ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 opacity-30">
+                                <BarChart size={64} className="mb-4" strokeWidth={1} />
+                                <p className="text-xs font-bold uppercase tracking-widest">物理层暂无可用数据记录</p>
+                            </div>
+                        )}
                     </div>
-                 </div>
+                </div>
 
-                 <div className="xl:col-span-4 bg-navy rounded-[40px] p-10 text-white shadow-2xl flex flex-col relative overflow-hidden group">
-                     <div className="absolute top-0 right-0 w-48 h-48 bg-brand/10 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2"></div>
-                     <div className="flex items-center gap-4 mb-8 relative z-10">
-                        <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center shadow-lg border border-white/10 group-hover:rotate-6 transition-transform"><BotIcon size={24} className="text-white" /></div>
-                        <div><h3 className="text-xl font-black tracking-tight">AI 战略诊断室</h3><p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Decision Engine</p></div>
-                     </div>
-                     <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 relative z-10">
+                <div className="xl:col-span-4 bg-navy rounded-[48px] p-10 text-white shadow-2xl flex flex-col relative overflow-hidden group/room">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-brand/5 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
+                    <div className="flex items-center gap-4 mb-10 relative z-10">
+                        <div className="w-14 h-14 rounded-3xl bg-brand flex items-center justify-center shadow-[0_12px_30px_rgba(112,173,71,0.4)] border border-white/10 group-hover/room:scale-110 transition-transform duration-500">
+                            <BotIcon size={28} className="text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black tracking-tight flex items-center gap-2">AI 战略诊断室 <Sparkles size={16} className="text-brand animate-pulse" /></h3>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Neural Decision Hub</p>
+                        </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto no-scrollbar space-y-5 relative z-10 pr-2">
                         {diagnoses.length === 0 ? (
-                            <div className="bg-white/5 rounded-2xl p-10 border border-white/5 text-center opacity-40 italic"><p className="text-xs font-bold text-slate-400">目前系统运行极其稳健，暂未探测到结构性风险。</p></div>
-                        ) : diagnoses.map(d => <DiagnosisCard key={d.id} diagnosis={d} />)}
-                     </div>
-                     <button className="w-full mt-8 py-4 bg-brand text-white rounded-2xl font-black text-xs hover:bg-[#5da035] transition-all flex items-center justify-center gap-2 shadow-xl shadow-brand/20 group/btn">查看全链路深度报告 <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" /></button>
-                 </div>
+                            <div className="bg-white/5 rounded-[32px] p-12 border border-white/5 text-center flex flex-col items-center justify-center min-h-[300px]">
+                                <DatabaseZap size={48} className="text-slate-700 mb-6 opacity-40" />
+                                <p className="text-xs font-bold text-slate-400 italic">当前物理系统运行平稳</p>
+                            </div>
+                        ) : diagnoses.map((d) => <DiagnosisCard key={d.id} diagnosis={d} />)}
+                    </div>
+                    <button className="w-full mt-10 py-5 bg-brand text-white rounded-[24px] font-black text-sm hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 shadow-2xl shadow-brand/20 group/btn active:scale-95">
+                        查看完整诊断报表 <ChevronRight size={16} className="group-hover/btn:translate-x-1 transition-transform" />
+                    </button>
+                </div>
             </div>
         </div>
     );
 };
 
-// 增强型诊断卡片
 const DiagnosisCard: React.FC<{ diagnosis: Diagnosis }> = ({ diagnosis }) => {
-    const config = {
-        asset: { icon: <PackageSearch size={18}/>, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-        stock_severe: { icon: <ShieldAlert size={18}/>, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" },
-        stock_warning: { icon: <AlertTriangle size={18}/>, color: "text-orange-500", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-        explosive: { icon: <Flame size={18}/>, color: "text-brand", bg: "bg-brand/10", border: "border-brand/20" },
-        ad_star: { icon: <Rocket size={18}/>, color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" },
-        ad_waste: { icon: <Coins size={18}/>, color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/20" },
-        cs_alert: { icon: <Headset size={18}/>, color: "text-indigo-400", bg: "bg-indigo-400/10", border: "border-indigo-400/20" }
-    }[diagnosis.type];
-
+    const configMap = {
+        asset: { icon: <PackageSearch size={20}/>, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" },
+        stock_severe: { icon: <ShieldAlert size={20}/>, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" },
+        stock_warning: { icon: <AlertTriangle size={20}/>, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+        explosive: { icon: <Flame size={20}/>, color: "text-brand", bg: "bg-brand/10", border: "border-brand/20" },
+        ad_star: { icon: <Rocket size={20}/>, color: "text-cyan-400", bg: "bg-cyan-400/10", border: "border-cyan-400/20" },
+        ad_waste: { icon: <Coins size={20}/>, color: "text-rose-400", bg: "bg-rose-400/10", border: "border-rose-400/20" },
+        cs_alert: { icon: <Headset size={20}/>, color: "text-indigo-400", bg: "bg-indigo-400/10", border: "border-indigo-400/20" },
+        data_gap: { icon: <CalendarX size={20}/>, color: "text-amber-400", bg: "bg-amber-400/10", border: "border-amber-400/20" },
+        high_potential: { icon: <Star size={20}/>, color: "text-blue-400", bg: "bg-blue-400/10", border: "border-blue-400/20" }
+    };
+    const cfg = configMap[diagnosis.type] || configMap.asset;
     return (
-        <div className={`p-5 rounded-2xl border transition-all hover:bg-white/5 ${config.bg} ${config.border}`}>
-            <div className="flex gap-3 mb-3">
-                <div className={`${config.color}`}>{config.icon}</div>
-                <div><p className="text-xs font-black uppercase tracking-tight">{diagnosis.title}</p><p className="text-[10px] text-slate-400 font-bold mt-0.5">{diagnosis.desc}</p></div>
+        <div className={`p-6 rounded-[32px] border transition-all hover:bg-white/5 group/dcard ${cfg.bg} ${cfg.border} animate-slideIn`}>
+            <div className="flex gap-4 mb-4">
+                <div className={`${cfg.color} shrink-0 mt-0.5 group-hover/dcard:rotate-12 transition-transform`}>{cfg.icon}</div>
+                <div>
+                    <div className="flex items-center gap-2">
+                        <p className="text-sm font-black uppercase tracking-tight">{diagnosis.title}</p>
+                        {diagnosis.severity === 'critical' && <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase">Critical</span>}
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-bold mt-1 opacity-80">{diagnosis.desc}</p>
+                </div>
             </div>
-            <div className="bg-navy/40 rounded-xl p-3 border border-white/5 text-[10px] space-y-1">
-                {Object.entries(diagnosis.details).map(([k,v]) => (
-                    <div key={k} className="flex justify-between items-center"><span className="text-slate-500 uppercase font-black text-[8px]">{k}</span><span className="text-slate-200 font-bold">{String(v)}</span></div>
+            <div className="bg-navy/50 rounded-2xl p-4 border border-white/5 space-y-2">
+                {Object.entries(diagnosis.details).map(([key, val]) => (
+                    <div key={key} className="flex justify-between items-center text-[10px]"><span className="text-slate-500 font-black uppercase tracking-widest">{key}</span><span className="text-slate-200 font-black tabular-nums">{val}</span></div>
                 ))}
             </div>
         </div>
     );
 };
 
-// 趋势图 SVG 组件
 const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ data, isFloat = false }) => {
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const width = 800; const height = 280; const padding = { top: 20, right: 20, bottom: 40, left: 20 };
-    const maxVal = Math.max(...data.map(d => d.total), 0.1) * 1.15;
+    const width = 800; const height = 300; const padding = { top: 30, right: 30, bottom: 50, left: 30 };
+    
+    const maxVal = Math.max(...data.map(d => d.total), 0.1) * 1.05;
     const getX = (i: number) => padding.left + (i / (data.length - 1)) * (width - padding.left - padding.right);
     const getY = (v: number) => height - padding.bottom - (v / maxVal) * (height - padding.top - padding.bottom);
-    const selfPath = useMemo(() => { if (data.length < 2) return ""; let p = `M ${getX(0)},${getY(data[0].self)}`; data.forEach((d, i) => { if(i>0) p += ` L ${getX(i)},${getY(d.self)}`; }); p += ` L ${getX(data.length-1)},${height - padding.bottom} L ${getX(0)},${height - padding.bottom} Z`; return p; }, [data, maxVal]);
-    const popPath = useMemo(() => { if (data.length < 2) return ""; let p = `M ${getX(0)},${getY(data[0].total)}`; data.forEach((d, i) => { if(i>0) p += ` L ${getX(i)},${getY(d.total)}`; }); p += ` L ${getX(data.length-1)},${getY(data[data.length-1].self)}`; for (let i = data.length - 1; i >= 0; i--) { p += ` L ${getX(i)},${getY(data[i].self)}`; } p += " Z"; return p; }, [data, maxVal]);
+    
+    const selfPath = useMemo(() => { 
+        if (data.length < 2) return ""; 
+        let p = `M ${getX(0)},${getY(data[0].self)}`; 
+        data.forEach((d, i) => { if(i>0) p += ` L ${getX(i)},${getY(d.self)}`; }); 
+        p += ` L ${getX(data.length-1)},${height - padding.bottom} L ${getX(0)},${height - padding.bottom} Z`; 
+        return p; 
+    }, [data, maxVal]);
+
+    const popPath = useMemo(() => { 
+        if (data.length < 2) return ""; 
+        let p = `M ${getX(0)},${getY(data[0].total)}`; 
+        data.forEach((d, i) => { if(i>0) p += ` L ${getX(i)},${getY(d.total)}`; }); 
+        p += ` L ${getX(data.length-1)},${getY(data[data.length-1].self)}`; 
+        for (let i = data.length - 1; i >= 0; i--) { p += ` L ${getX(i)},${getY(data[i].self)}`; } 
+        p += " Z"; 
+        return p; 
+    }, [data, maxVal]);
+    
     const formatVal = (v: number) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
+
     return (
-        <div ref={containerRef} className="w-full h-full relative cursor-crosshair group" onMouseMove={(e) => { const rect = containerRef.current!.getBoundingClientRect(); const x = ((e.clientX - rect.left) / rect.width) * width; const idx = Math.round(((x - padding.left) / (width - padding.left - padding.right)) * (data.length - 1)); if(idx >= 0 && idx < data.length) setHoverIndex(idx); }} onMouseLeave={() => setHoverIndex(null)}>
+        <div ref={containerRef} className="w-full h-full relative cursor-crosshair group/trend" onMouseMove={(e) => { const rect = containerRef.current!.getBoundingClientRect(); const x = ((e.clientX - rect.left) / rect.width) * width; const idx = Math.round(((x - padding.left) / (width - padding.left - padding.right)) * (data.length - 1)); if(idx >= 0 && idx < data.length) setHoverIndex(idx); }} onMouseLeave={() => setHoverIndex(null)}>
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
-                <defs><linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#70AD47" stopOpacity="0.3"/><stop offset="100%" stopColor="#70AD47" stopOpacity="0.02"/></linearGradient><linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.3"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0.02"/></linearGradient></defs>
-                {[0, 0.5, 1].map(v => <line key={v} x1={padding.left} y1={getY(maxVal * v / 1.15)} x2={width - padding.right} y2={getY(maxVal * v / 1.15)} stroke="#f1f5f9" strokeWidth="1" />)}
-                <path d={selfPath} fill="url(#gS)" className="transition-all duration-500"/><path d={popPath} fill="url(#gP)" className="transition-all duration-500"/>
-                <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.self)}`).join(' L ')}`} fill="none" stroke="#70AD47" strokeWidth="2.5"/><path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.total)}`).join(' L ')}`} fill="none" stroke="#3B82F6" strokeWidth="2.5"/>
-                {hoverIndex !== null && <><line x1={getX(hoverIndex)} y1={padding.top} x2={getX(hoverIndex)} y2={height - padding.bottom} stroke="#000" strokeDasharray="4 4" /><circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].self)} r="4" fill="#fff" stroke="#70AD47" strokeWidth="2"/><circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].total)} r="4" fill="#fff" stroke="#3B82F6" strokeWidth="2"/></>}
-                <text x={padding.left} y={height - 10} fontSize="10" fill="#cbd5e1" fontWeight="bold">{data[0].date.substring(5)}</text>
-                <text x={width - padding.right} y={height - 10} textAnchor="end" fontSize="10" fill="#cbd5e1" fontWeight="bold">{data[data.length-1].date.substring(5)}</text>
+                <defs>
+                    <linearGradient id="gSelf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#70AD47" stopOpacity="0.4"/><stop offset="100%" stopColor="#70AD47" stopOpacity="0.05"/></linearGradient>
+                    <linearGradient id="gPop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0.05"/></linearGradient>
+                </defs>
+                {[0, 0.5, 1].map(v => <line key={v} x1={padding.left} y1={getY(maxVal * v / 1.05)} x2={width - padding.right} y2={getY(maxVal * v / 1.05)} stroke="#f8fafc" strokeWidth="2" />)}
+                <path d={selfPath} fill="url(#gSelf)" className="transition-all duration-700"/><path d={popPath} fill="url(#gPop)" className="transition-all duration-700"/>
+                <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.self)}`).join(' L ')}`} fill="none" stroke="#70AD47" strokeWidth="3" strokeLinecap="round"/><path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.total)}`).join(' L ')}`} fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round"/>
+                {hoverIndex !== null && <><line x1={getX(hoverIndex)} y1={padding.top} x2={getX(hoverIndex)} y2={height - padding.bottom} stroke="#020617" strokeDasharray="6 4" strokeWidth="1" /><circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].self)} r="5" fill="#fff" stroke="#70AD47" strokeWidth="3 shadow-lg"/><circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].total)} r="5" fill="#fff" stroke="#3B82F6" strokeWidth="3 shadow-lg"/></>}
+                <text x={padding.left} y={height - 15} fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase tracking-widest">{data[0].date.substring(5)}</text>
+                <text x={width - padding.right} y={height - 15} textAnchor="end" fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase tracking-widest">{data[data.length-1].date.substring(5)}</text>
             </svg>
             {hoverIndex !== null && (
-                <div className="absolute z-50 pointer-events-none bg-slate-900 text-white rounded-xl p-4 shadow-2xl animate-fadeIn" style={{ left: `${(getX(hoverIndex)/width)*100}%`, top: '30%', transform: `translate(${hoverIndex > data.length/2 ? '-110%' : '10%'}, -50%)` }}>
-                    <p className="text-[10px] font-black text-slate-400 mb-2">{data[hoverIndex].date}</p>
-                    <div className="space-y-1">
-                        <div className="flex justify-between gap-8"><span className="text-[10px] font-bold">自营模式</span><span className="text-xs font-black">{formatVal(data[hoverIndex].self)}</span></div>
-                        <div className="flex justify-between gap-8"><span className="text-[10px] font-bold">POP 模式</span><span className="text-xs font-black">{formatVal(data[hoverIndex].pop)}</span></div>
-                        <div className="pt-1.5 border-t border-white/10 flex justify-between gap-8"><span className="text-[10px] font-black text-slate-400 uppercase">总量</span><span className="text-sm font-black text-brand">{formatVal(data[hoverIndex].total)}</span></div>
+                <div className="absolute z-50 pointer-events-none bg-slate-900 text-white rounded-2xl p-5 shadow-2xl animate-fadeIn" style={{ left: `${(getX(hoverIndex)/width)*100}%`, top: '35%', transform: `translate(${hoverIndex > data.length/2 ? '-110%' : '15%'}, -50%)` }}>
+                    <p className="text-[10px] font-black text-slate-500 mb-3 border-b border-white/10 pb-2 uppercase tracking-widest">{data[hoverIndex].date}</p>
+                    <div className="space-y-2">
+                        <div className="flex justify-between gap-10 items-center"><span className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div className="w-1.5 h-1.5 rounded-full bg-brand"></div>自营体系</span><span className="text-xs font-black tabular-nums">{formatVal(data[hoverIndex].self)}</span></div>
+                        <div className="flex justify-between gap-10 items-center"><span className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>POP 模式</span><span className="text-xs font-black tabular-nums">{formatVal(data[hoverIndex].pop)}</span></div>
+                        <div className="pt-2 border-t border-white/10 flex justify-between gap-10 items-center"><span className="text-[10px] font-black text-brand uppercase">当日总量合计</span><span className="text-sm font-black text-brand tabular-nums">{formatVal(data[hoverIndex].total)}</span></div>
                     </div>
                 </div>
             )}
@@ -381,26 +426,27 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
 const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBetter = true, color, bg, isLoading, isActive, onClick }: any) => {
     const calculateChange = (curr: number, prev: number) => prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
     const formatVal = (v: number) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
-    const chg = calculateChange(value.total.current, value.total.previous);
+    const totalChange = calculateChange(value.total.current, value.total.previous);
     return (
-        <button onClick={onClick} className={`bg-white rounded-[32px] border text-left transition-all duration-300 group flex flex-col overflow-hidden relative active:scale-95 ${isActive ? 'ring-4 ring-brand/10 border-brand shadow-xl' : 'border-slate-100 shadow-sm hover:shadow-lg'}`}>
-            <div className="p-6 flex-1 space-y-4">
+        <button onClick={onClick} className={`bg-white rounded-[40px] border text-left transition-all duration-500 group flex flex-col overflow-hidden relative active:scale-95 ${isActive ? 'ring-[6px] ring-brand/10 border-brand shadow-2xl scale-[1.02]' : 'border-slate-100 shadow-sm hover:shadow-xl hover:border-slate-200'}`}>
+            <div className="p-8 flex-1 space-y-6">
                 <div className="flex justify-between items-start">
-                    <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center ${color}`}>{icon}</div>
+                    <div className={`w-14 h-14 ${bg} rounded-[22px] flex items-center justify-center ${color} group-hover:scale-110 transition-transform duration-700`}>{icon}</div>
                     <div className="text-right">
-                        <h3 className="text-[10px] font-black text-slate-400 uppercase mb-1">{title}</h3>
-                        {!isLoading && <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${((chg > 0 && isHigherBetter) || (chg < 0 && !isHigherBetter)) ? 'bg-green-50 text-green-500' : 'bg-rose-50 text-rose-500'}`}>{chg > 0 ? '↑' : '↓'} {Math.abs(chg).toFixed(1)}%</span>}
+                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1.5">{title}</h3>
+                        {!isLoading && (
+                            <div className={`text-[10px] font-black px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${((totalChange > 0 && isHigherBetter) || (totalChange < 0 && !isHigherBetter)) ? 'bg-green-50 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
+                                {totalChange >= 0 ? <ArrowUp size={10} strokeWidth={4} /> : <ArrowDown size={10} strokeWidth={4} />}
+                                {Math.abs(totalChange).toFixed(1)}%
+                            </div>
+                        )}
                     </div>
                 </div>
-                <div className="pt-2">
-                    {isLoading ? <div className="h-10 w-3/4 bg-slate-50 animate-pulse rounded-xl"></div> : <p className="text-3xl font-black text-slate-900 tabular-nums tracking-tighter">{prefix}{formatVal(value.total.current)}</p>}
-                </div>
+                <div>{isLoading ? <div className="h-10 w-3/4 bg-slate-50 animate-pulse rounded-2xl"></div> : <p className="text-4xl font-black text-slate-900 tabular-nums tracking-tighter">{prefix}{formatVal(value.total.current)}</p>}</div>
             </div>
-            <div className={`bg-slate-50/50 border-t p-4 grid grid-cols-2 gap-3 ${isActive ? 'bg-brand/5 border-brand/10' : ''}`}>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase">自营</p><p className="text-xs font-black text-slate-700">{prefix}{formatVal(value.self.current)}</p></div>
-                <div className="border-l border-slate-100 pl-3">
-                    <p className="text-[8px] font-black text-slate-400 uppercase">POP</p><p className="text-xs font-black text-slate-700">{prefix}{formatVal(value.pop.current)}</p>
-                </div>
+            <div className={`bg-slate-50/50 border-t p-5 grid grid-cols-2 gap-4 ${isActive ? 'bg-brand/5 border-brand/10' : 'border-slate-50'}`}>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">自营端</p><p className="text-[11px] font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.self.current)}</p></div>
+                <div className="border-l border-slate-200 pl-4"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">POP端</p><p className="text-[11px] font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.pop.current)}</p></div>
             </div>
         </button>
     );
