@@ -244,10 +244,6 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
         setIsResetModalOpen(false);
     };
 
-    /**
-     * Fix: Add missing handleOpenEditModal function to set editingField state.
-     * This was causing a ReferenceError at line 334.
-     */
     const handleOpenEditModal = (field: FieldDefinition) => {
         setEditingField(field);
     };
@@ -294,8 +290,8 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
             <AddFieldModal isOpen={isAddFieldModalOpen} onClose={() => setIsAddFieldModalOpen(false)} onConfirm={(f) => { onUpdateSchema(selectedSchemaType, [...currentSchema, f]); addToast('success', '映射成功', `[${f.label}] 已加入物理层映射。`); setIsAddFieldModalOpen(false); }} existingKeys={currentSchema.map(f => f.key)} />
             <EditFieldModal isOpen={!!editingField} onClose={() => setEditingField(null)} onConfirm={(f) => { onUpdateSchema(selectedSchemaType, currentSchema.map(x => x.key === f.key ? f : x)); addToast('success', '修订成功', `映射 [${f.label}] 已更新。`); setEditingField(null); }} field={editingField} />
 
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 border-b border-slate-200 pb-10">
+            {/* Command Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-200 pb-10">
                 <div className="space-y-1">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
@@ -323,7 +319,7 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                                     <select value={selectedSchemaType} onChange={e => setSelectedSchemaType(e.target.value as TableType)} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-700 outline-none focus:border-brand appearance-none shadow-sm">
                                         <option value="shangzhi">商智核心事实表 (fact_shangzhi)</option>
                                         <option value="jingzhuntong">广告投放事实表 (fact_jingzhuntong)</option>
-                                        <option value="customer_service">客服接待事实表 (fact_customer_service)</option>
+                                        <option value="customer_service">客服接待流水事实表 (fact_customer_service)</option>
                                     </select>
                                     <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 </div>
@@ -456,7 +452,7 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                             <div className="p-8 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative z-10">
                                 <div className="flex items-center gap-6">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        展示 {(currentPage-1)*PAGE_SIZE + 1} - {Math.min(currentPage*PAGE_SIZE, filteredData.length)} / 共 {filteredData.length.toLocaleString()} 行
+                                        展示 {(currentPage-1)*PAGE_SIZE + 1} - {Math.min(currentPage*PAGE_SIZE, filteredData.length)} / 共 {filteredData.length.toLocaleString()} 行记录
                                     </div>
                                     {selectedRowIds.size > 0 && (
                                         <button onClick={() => setIsDeleteSelectedModalOpen(true)} className="px-6 py-2.5 bg-rose-500 text-white rounded-xl text-[10px] font-black hover:bg-rose-600 shadow-xl shadow-rose-500/20 transition-all active:scale-95 uppercase tracking-widest flex items-center gap-2 animate-slideIn">
@@ -475,15 +471,6 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                         </div>
                     </div>
                 )}
-            </div>
-
-            {/* Professional Footer Label */}
-            <div className="flex items-center justify-between opacity-40 grayscale group hover:grayscale-0 transition-all px-12">
-                 <div className="flex items-center gap-4">
-                     <Sparkles size={16} className="text-brand animate-pulse"/>
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Physical Governance Studio v1.9.4</p>
-                 </div>
-                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Yunzhou Intelligence Strategic Subsystem</p>
             </div>
         </div>
     );

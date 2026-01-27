@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive, X, Activity, Server, Zap, Sparkles, LayoutGrid, FileText } from 'lucide-react';
+import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive, X, Activity, Server, Zap, Sparkles, LayoutGrid, FileText, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TableType, UploadHistory, Shop } from '../lib/types';
 import { getTableName, detectTableType } from '../lib/helpers';
@@ -190,7 +190,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
       </ConfirmModal>
 
       <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
-        {/* Standardized Command Header */}
+        {/* Command Header - Standardized */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-200 pb-10">
             <div className="space-y-1">
                 <div className="flex items-center gap-3 mb-3">
@@ -504,20 +504,4 @@ const ArchiveButton = ({ label, onClick }: any) => (
         </div>
         <Download size={14} className="text-slate-300 group-hover/btn:text-slate-900" />
     </button>
-);
-
-const Loader2 = ({ size, className }: any) => (
-    <svg 
-        width={size} 
-        height={size} 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        className={`animate-spin ${className}`}
-    >
-        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
 );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     TrendingUp, ShoppingBag, Activity, CreditCard, Target, 
@@ -29,10 +28,8 @@ interface Diagnosis {
 
 const formatVal = (v: number, isFloat = false) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
 
-// Fix: Added optional key to DiagnosisCard props to resolve TS error in list rendering
-// and removed redundant internal key from the div.
 const DiagnosisCard = ({ d }: { d: Diagnosis; key?: React.Key }) => (
-    <div className={`p-8 rounded-[32px] border ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'} hover:shadow-xl transition-all group/card cursor-default shrink-0`}>
+    <div className={`p-8 rounded-[32px] border snap-start ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'} hover:shadow-xl transition-all group/card cursor-default shrink-0 w-full`}>
         <div className="flex items-center gap-4 mb-4">
             {d.type === 'new_sku' ? <PackageSearch className="text-cyan-500" size={24}/> :
              d.type === 'asset' ? <SearchCode className="text-amber-500" size={24}/> :
@@ -42,7 +39,7 @@ const DiagnosisCard = ({ d }: { d: Diagnosis; key?: React.Key }) => (
              <Star className="text-amber-500" size={24}/>}
             <h4 className={`text-lg font-black uppercase tracking-tight ${d.severity === 'critical' ? 'text-rose-600' : 'text-slate-800'}`}>{d.title}</h4>
         </div>
-        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-6">{d.desc}</p>
+        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-6 line-clamp-2">{d.desc}</p>
         <div className="bg-white/60 rounded-2xl p-5 border border-white/20 space-y-2">
             {Object.entries(d.details).map(([k,v]) => (
                 <div key={k} className="flex justify-between text-[10px] font-black uppercase">
@@ -250,14 +247,14 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
     return (
         <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
-            {/* Command Header */}
+            {/* Command Header - Standardized */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-200 pb-10">
                 <div className="space-y-1">
                     <div className="flex items-center gap-3 mb-3">
-                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em]">物理层指挥链路已建立</span>
+                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层指挥链路已建立</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter">战略指挥控制台</h1>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">战略指挥控制台</h1>
                     <p className="text-slate-400 font-bold text-sm tracking-wide">Strategic Performance Intelligence & AI Decision Matrix</p>
                 </div>
                 
@@ -310,7 +307,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     </div>
                 </div>
 
-                {/* AI Insight Room - Max 1 visible diagnosis with scrolling and modal */}
+                {/* AI Insight Room - Optimized for strictly 1 visible diagnosis */}
                 <div className="xl:col-span-4 bg-white rounded-[48px] p-12 shadow-xl border border-slate-100 flex flex-col relative overflow-hidden group/diag">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-brand/5 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
                     <div className="flex items-center gap-5 mb-10 relative z-10">
@@ -323,8 +320,8 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                         </div>
                     </div>
 
-                    {/* Height limited to h-[280px] to strictly show about 1 card at a time */}
-                    <div className="h-[280px] space-y-6 relative z-10 overflow-y-auto no-scrollbar pr-2 mb-10 scroll-smooth">
+                    {/* Height limited to h-[280px] with snap-y for single-card scrolling focus */}
+                    <div className="h-[280px] space-y-6 relative z-10 overflow-y-auto no-scrollbar pr-2 mb-10 scroll-smooth snap-y snap-mandatory">
                         {diagnoses.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center bg-slate-50/50 rounded-[40px] border border-dashed border-slate-200 p-10 text-center opacity-40">
                                 <DatabaseZap size={48} className="text-slate-300 mb-6" />
@@ -373,6 +370,19 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
 const formatPercent = (v: number) => `${(v * 100).toFixed(1)}%`;
 
+const SubValueTrend = ({ current, previous, isHigherBetter = true }: { current: number, previous: number, isHigherBetter?: boolean }) => {
+    if (previous === 0) return null;
+    const chg = ((current - previous) / previous) * 100;
+    const isGood = (chg >= 0 && isHigherBetter) || (chg < 0 && !isHigherBetter);
+    const color = isGood ? 'text-green-500' : 'text-rose-500';
+    return (
+        <div className={`flex items-center gap-0.5 ${color} font-black text-[9px] mt-0.5`}>
+            {chg >= 0 ? <ArrowUp size={8} strokeWidth={4}/> : <ArrowDown size={8} strokeWidth={4}/>}
+            <span className="tabular-nums">{Math.abs(chg).toFixed(1)}%</span>
+        </div>
+    );
+};
+
 const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBetter = true, color, bg, isActive, onClick }: any) => {
     const chg = value.total.previous === 0 ? 0 : ((value.total.current - value.total.previous) / value.total.previous) * 100;
     const isGood = (chg >= 0 && isHigherBetter) || (chg < 0 && !isHigherBetter);
@@ -398,13 +408,19 @@ const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBet
                  <div className="flex flex-1 items-center px-8 border-r border-slate-200">
                     <div className="flex flex-col">
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">自营店铺</span>
-                        <span className="text-xs font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.self.current, isFloat)}</span>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-xs font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.self.current, isFloat)}</span>
+                            <SubValueTrend current={value.self.current} previous={value.self.previous} isHigherBetter={isHigherBetter} />
+                        </div>
                     </div>
                  </div>
                  <div className="flex flex-1 items-center px-8">
                     <div className="flex flex-col">
                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">POP店铺</span>
-                        <span className="text-xs font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.pop.current, isFloat)}</span>
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-xs font-black text-slate-700 tabular-nums">{prefix}{formatVal(value.pop.current, isFloat)}</span>
+                            <SubValueTrend current={value.pop.current} previous={value.pop.previous} isHigherBetter={isHigherBetter} />
+                        </div>
                     </div>
                  </div>
             </div>

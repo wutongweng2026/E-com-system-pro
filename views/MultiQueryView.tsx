@@ -123,7 +123,6 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
         </div>
     );
 
-    // 高度减半：从 300 降至 150
     const width = 1000; const height = 150; 
     const padding = { top: 20, right: 40, bottom: 30, left: 60 };
     
@@ -160,7 +159,6 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                     return (
                         <g key={key} className="transition-all duration-700">
                             <path d={`M ${xScale(0)},${height-padding.bottom} L ${pts} L ${xScale(dailyData.length-1)},${height-padding.bottom} Z`} fill={`url(#g-${key})`} />
-                            {/* 线宽从 4 减至 2 */}
                             <path d={`M ${pts}`} fill="none" stroke={METRIC_COLORS[key]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </g>
                     );
@@ -199,10 +197,8 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     const [comparisonType, setComparisonType] = useState<'period' | 'year'>('period');
     
     const VISUAL_METRICS = ['pv', 'uv', 'paid_items', 'paid_amount', 'paid_conversion_rate', 'cost', 'cpc', 'roi'];
-    // 默认选择：访客数(uv)、成交金额(paid_amount)、广告花费(cost)
     const [chartMetrics, setChartMetrics] = useState<Set<string>>(new Set(['uv', 'paid_amount', 'cost']));
     
-    // 显示行数改为 20
     const ROWS_PER_PAGE = 20;
 
     const handleQuery = () => {
@@ -279,12 +275,16 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     return (
         <>
             <MetricSelectionModal isOpen={isMetricModalOpen} onClose={() => setIsMetricModalOpen(false)} shangzhiMetrics={schemas.shangzhi.filter(f => !['date','sku_code','product_name'].includes(f.key))} jingzhuntongMetrics={schemas.jingzhuntong.filter(f => !['date'].includes(f.key))} selectedMetrics={selectedMetrics} onConfirm={(m:any) => { setSelectedMetrics(m); setIsMetricModalOpen(false); }} />
-            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10">
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2"><div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div><span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层多维透视中</span></div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">多维数据透视中心</h1>
-                        <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Physical Dimensional Intelligence Hub & Record Penetration</p>
+            <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
+                {/* Command Header - Standardized */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-200 pb-10">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
+                            <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层多维透视中</span>
+                        </div>
+                        <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">多维数据透视中心</h1>
+                        <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Dimensional Intelligence Hub & Record Penetration</p>
                     </div>
                 </div>
 

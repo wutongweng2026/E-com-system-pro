@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown, LoaderCircle, CheckCircle2, AlertCircle, Store, ChevronLeft, ChevronRight, Search, ToggleLeft, ToggleRight, Box, Filter, LayoutGrid, Sparkles, ShieldAlert, CheckSquare, Square, BarChart2 } from 'lucide-react';
@@ -46,7 +45,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
     const [brand, setBrand] = useState('');
     const [category, setCategory] = useState('');
     const [model, setModel] = useState('');
-    const [subModel, setSubModel] = useState(''); // 新增小型号
+    const [subModel, setSubModel] = useState(''); 
     const [mtm, setMtm] = useState('');
     const [configuration, setConfiguration] = useState('');
     const [mode, setMode] = useState<SKUMode>('入仓');
@@ -203,7 +202,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
                 {error && <p className="text-xs text-rose-500 mt-6 bg-rose-50 p-4 rounded-2xl font-bold border border-rose-100 flex items-center gap-2"><AlertCircle size={14}/> {error}</p>}
                 <div className="flex justify-end gap-4 mt-12 pt-8 border-t border-slate-50">
                     <button onClick={onClose} className="px-8 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs hover:bg-slate-50 transition-all uppercase tracking-widest">取消</button>
-                    <button onClick={handleConfirm} className="px-10 py-4 rounded-2xl bg-brand text-white font-black text-xs hover:bg-[#5da035] shadow-2xl shadow-brand/30 transition-all active:scale-95 uppercase tracking-widest">{confirmText}</button>
+                    <button onClick={handleConfirm} className="px-10 py-4 rounded-2xl bg-brand text-white font-black text-xs hover:bg-[#5da035] shadow-2xl shadow-brand/20 transition-all active:scale-95 uppercase tracking-widest">{confirmText}</button>
                 </div>
             </div>
         </div>
@@ -395,14 +394,13 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
                 {error && <p className="text-xs text-rose-500 mt-6 bg-rose-50 p-4 rounded-xl border border-rose-100 font-bold">{error}</p>}
                 <div className="flex justify-end gap-4 mt-12 pt-8 border-t border-slate-50">
                     <button onClick={onClose} className="flex-1 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs hover:bg-slate-50 transition-all uppercase">取消</button>
-                    <button onClick={handleConfirm} className="flex-[2] py-4 rounded-2xl bg-brand text-white font-black text-xs shadow-2xl shadow-brand/30 transition-all uppercase tracking-widest">{listToEdit ? '保存更改' : '执行全链路映射'}</button>
+                    <button onClick={handleConfirm} className="flex-[2] py-4 rounded-2xl bg-brand text-white font-black text-xs shadow-2xl shadow-brand/20 transition-all uppercase tracking-widest">{listToEdit ? '保存更改' : '执行全链路映射'}</button>
                 </div>
             </div>
         </div>
     );
 };
 
-/* Define the missing SKUManagementViewProps interface */
 interface SKUManagementViewProps {
     shops: Shop[];
     skus: ProductSKU[];
@@ -476,7 +474,6 @@ export const SKUManagementView = ({
     const ROWS_PER_PAGE = 50;
 
     const skuCodeToNameMap = useMemo(() => new Map(skus.map(s => [s.code, s.name])), [skus]);
-    /* Add missing shopIdToName map */
     const shopIdToName = useMemo(() => new Map(shops.map(s => [s.id, s.name])), [shops]);
     const uniqueBrands = useMemo(() => Array.from(new Set(skus.map(sku => sku.brand).filter(Boolean))).sort(), [skus]);
     const uniqueCategories = useMemo(() => Array.from(new Set(skus.map(sku => sku.category).filter(Boolean))).sort(), [skus]);
@@ -635,14 +632,16 @@ export const SKUManagementView = ({
             <input type="file" ref={shopFileInputRef} onChange={(e) => handleFileSelected(e, 'shop')} accept=".xlsx, .xls" className="hidden" />
             <input type="file" ref={agentFileInputRef} onChange={(e) => handleFileSelected(e, 'agent')} accept=".xlsx, .xls" className="hidden" />
 
-            {/* Header Area */}
+            {/* Command Header - Standardized */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 border-b border-slate-200 pb-10">
                 <div className="space-y-1">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
                         <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层资产链路已建立</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">{activeTab === 'sku' ? 'SKU资产' : activeTab === 'shop' ? '核心店铺名录' : activeTab === 'agent' ? '客服席位管控' : '分层清单实验室'}</h1>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">
+                        {activeTab === 'sku' ? 'SKU 资产名录' : activeTab === 'shop' ? '核心店铺名录' : activeTab === 'agent' ? '客服席位管控' : '分层清单实验室'}
+                    </h1>
                     <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Master Data Management & Assets Governance Hub</p>
                 </div>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
@@ -652,7 +651,6 @@ export const SKUManagementView = ({
                 </div>
             </div>
 
-            {/* Main Content Card */}
             <div className="bg-white rounded-[56px] shadow-sm border border-slate-100 p-12 relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(112,173,71,0.025),transparent_70%)] pointer-events-none"></div>
                 
@@ -800,7 +798,6 @@ export const SKUManagementView = ({
                     </div>
                 )}
 
-                {/* Simplified logic for other tabs based on the new style */}
                 {activeTab !== 'sku' && (
                     <div className="space-y-12 animate-fadeIn">
                         <div className="flex justify-between items-center mb-8 border-b border-slate-50 pb-8">
