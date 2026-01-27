@@ -31,12 +31,11 @@ interface Diagnosis {
     type: 'asset' | 'stock_severe' | 'stock_warning' | 'explosive' | 'ad_star' | 'ad_waste' | 'cs_alert' | 'data_gap' | 'high_potential' | 'roi_drop' | 'cpc_spike' | 'low_efficiency';
     title: string;
     desc: string;
-    skuInfo?: string; // 新增：富文本SKU信息
+    skuInfo?: string;
     details: Record<string, string | number>;
     severity: 'critical' | 'warning' | 'info' | 'success';
 }
 
-// 诊断全量报告弹窗
 const FullReportModal = ({ isOpen, onClose, diagnoses }: { isOpen: boolean; onClose: () => void; diagnoses: Diagnosis[] }) => {
     if (!isOpen) return null;
     return (
@@ -94,7 +93,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
     const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
 
-    // 映射表
     const enabledSkusMap = useMemo(() => {
         const map = new Map<string, ProductSKU>();
         skus.forEach(s => { if (s.isStatisticsEnabled) map.set(s.code, s); });
@@ -211,7 +209,9 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     trends.ca.push({ date, self: d.ca.self, pop: d.ca.pop, total: d.ca.self + d.ca.pop });
                     trends.spend.push({ date, self: d.spend.self, pop: d.spend.pop, total: d.spend.self + d.spend.pop });
                     const tRoi = (d.spend.self + d.spend.pop) > 0 ? (d.gmv.self + d.gmv.pop) / (d.spend.self + d.spend.pop) : 0;
-                    trends.roi.push({ date, self: 0, pop: 0, total: tRoi });
+                    const selfRoi = d.spend.self > 0 ? d.gmv.self / d.spend.self : 0;
+                    const popRoi = d.spend.pop > 0 ? d.gmv.pop / d.spend.pop : 0;
+                    trends.roi.push({ date, self: selfRoi, pop: popRoi, total: tRoi });
                 });
 
                 setAllTrends(trends);
@@ -226,25 +226,31 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     }
                 });
 
-                // AI 诊断逻辑升维
                 const newDiagnoses: Diagnosis[] = [];
                 const skuGmvMap = new Map<string, number>();
                 currSz.forEach(r => { const c = getSkuIdentifier(r); if(c) skuGmvMap.set(c, (skuGmvMap.get(c) || 0) + (Number(r.paid_amount) || 0)); });
                 const skuCostMap = new Map<string, number>();
                 currJzt.forEach(r => { const c = getSkuIdentifier(r); if(c) skuCostMap.set(c, (skuCostMap.get(c) || 0) + (Number(r.cost) || 0)); });
 
-                const getRichSkuStr = (code: string) => {
-                    const sku = skus.find(s => s.code === code);
-                    if (!sku) return `SKU [${code}]`;
-                    const shopName = shopIdToName.get(sku.shopId) || '未知店';
-                    return `SKU [${code}] · ${shopName} · ${sku.model || '未注型号'} · ${sku.configuration || '标准配置'}`;
-                };
-
                 const knownSkuCodes = new Set(skus.map(s => s.code));
-                const activeCodes = new Set(currSz.map(r => getSkuIdentifier(r)).filter(Boolean));
-                activeCodes.forEach(code => {
-                    if (code && !knownSkuCodes.has(code)) {
-                        newDiagnoses.push({ id: `asset-${code}`, type: 'asset', severity: 'critical', title: '资产映射缺失', desc: `发现活跃 SKU 但资产库未登记。`, skuInfo: `SKU [${code}]`, details: { '建议': '前往资产名录补录' } });
+                const currActiveCodes = new Set(currSz.map(r => getSkuIdentifier(r)).filter(Boolean));
+                const prevActiveCodes = new Set(prevSz.map(r => getSkuIdentifier(r)).filter(Boolean));
+                
+                currActiveCodes.forEach(code => {
+                    if (code && !knownSkuCodes.has(code) && !prevActiveCodes.has(code)) {
+                        const physRow = currSz.find(r => getSkuIdentifier(r) === code);
+                        const physName = physRow?.product_name || '物理商品名未知';
+                        const physShop = physRow?.shop_name || '物理店铺名未知';
+
+                        newDiagnoses.push({ 
+                            id: `asset-${code}`, 
+                            type: 'asset', 
+                            severity: 'critical', 
+                            title: '新发现未映射资产', 
+                            desc: `检测到物理层新增活跃 SKU，但资产库未登记归属。`, 
+                            skuInfo: `SKU [${code}] · ${physShop} · ${physName}`, 
+                            details: { '建议': '前往资产名录补录' } 
+                        });
                     }
                 });
 
@@ -258,6 +264,13 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     checkDate.setDate(checkDate.getDate() + 1);
                 }
                 if (missingSz.length > 0) newDiagnoses.push({ id: 'gap-sz', type: 'data_gap', severity: 'warning', title: '数据流断层', desc: `本月探测到 ${missingSz.length} 个自然日销售记录缺失。`, details: { '最新断点': missingSz.slice(-1)[0] } });
+
+                const getRichSkuStr = (code: string) => {
+                    const sku = skus.find(s => s.code === code);
+                    if (!sku) return `SKU [${code}]`;
+                    const shopName = shopIdToName.get(sku.shopId) || '未知店';
+                    return `SKU [${code}] · ${shopName} · ${sku.model || '未注型号'} · ${sku.configuration || '标准配置'}`;
+                };
 
                 skuGmvMap.forEach((gmv, code) => {
                     const cost = skuCostMap.get(code) || 0;
@@ -471,12 +484,14 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const width = 800; const height = 300; const padding = { top: 30, right: 30, bottom: 50, left: 30 };
-    const maxVal = Math.max(...data.map(d => d.total), 0.1) * 1.1;
+    
+    // Y轴最大值逻辑：取自营与POP中的最大值，而非合计值，确保两条线对比更明显
+    const maxVal = Math.max(...data.map(d => Math.max(d.self, d.pop)), 0.1) * 1.2;
+    
     const getX = (i: number) => padding.left + (i / (data.length - 1)) * (width - padding.left - padding.right);
     const getY = (v: number) => height - padding.bottom - (v / maxVal) * (height - padding.top - padding.bottom);
     const formatVal = (v: number) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
 
-    // 区域填充路径生成
     const generateAreaPath = (points: number[]) => {
         if (points.length === 0) return "";
         let path = `M ${getX(0)},${height - padding.bottom}`;
@@ -490,25 +505,25 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
                 <defs>
                     <linearGradient id="gSelf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#70AD47" stopOpacity="0.4"/><stop offset="100%" stopColor="#70AD47" stopOpacity="0"/></linearGradient>
-                    <linearGradient id="gTotal" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/></linearGradient>
+                    <linearGradient id="gPop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/></linearGradient>
                 </defs>
                 
-                {/* 区域阴影填充 */}
+                {/* 自营区域（绿色） */}
                 <path d={generateAreaPath(data.map(d => d.self))} fill="url(#gSelf)" className="transition-all duration-500" />
-                <path d={generateAreaPath(data.map(d => d.total))} fill="url(#gTotal)" className="transition-all duration-500" />
-
-                {/* 描边曲线 */}
+                {/* POP区域（蓝色） */}
+                <path d={generateAreaPath(data.map(d => d.pop))} fill="url(#gPop)" className="transition-all duration-500" />
+                
+                {/* 曲线描边 */}
                 <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.self)}`).join(' L ')}`} fill="none" stroke="#70AD47" strokeWidth="3" strokeLinecap="round" className="transition-all duration-500" />
-                <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.total)}`).join(' L ')}`} fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" className="transition-all duration-500" />
+                <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.pop)}`).join(' L ')}`} fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" className="transition-all duration-500" />
                 
                 {hoverIndex !== null && (
                     <>
                         <line x1={getX(hoverIndex)} y1={padding.top} x2={getX(hoverIndex)} y2={height - padding.bottom} stroke="#020617" strokeDasharray="6 4" strokeWidth="1" />
                         <circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].self)} r="5" fill="#fff" stroke="#70AD47" strokeWidth="3" />
-                        <circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].total)} r="5" fill="#fff" stroke="#3B82F6" strokeWidth="3" />
+                        <circle cx={getX(hoverIndex)} cy={getY(data[hoverIndex].pop)} r="5" fill="#fff" stroke="#3B82F6" strokeWidth="3" />
                     </>
                 )}
-                
                 <text x={padding.left} y={height - 15} fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase tracking-widest">{data[0].date.substring(5)}</text>
                 <text x={width - padding.right} y={height - 15} textAnchor="end" fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase tracking-widest">{data[data.length-1].date.substring(5)}</text>
             </svg>
@@ -519,7 +534,7 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
                     <div className="space-y-2">
                         <div className="flex justify-between gap-10 items-center"><span className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div className="w-1.5 h-1.5 rounded-full bg-brand"></div>自营体系</span><span className="text-xs font-black tabular-nums">{formatVal(data[hoverIndex].self)}</span></div>
                         <div className="flex justify-between gap-10 items-center"><span className="flex items-center gap-2 text-[10px] font-bold text-slate-300"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>POP 体系</span><span className="text-xs font-black tabular-nums">{formatVal(data[hoverIndex].pop)}</span></div>
-                        <div className="pt-2 border-t border-white/10 flex justify-between gap-10 items-center"><span className="text-[10px] font-black text-brand uppercase tracking-widest">合计数值</span><span className="text-sm font-black text-brand tabular-nums">{formatVal(data[hoverIndex].total)}</span></div>
+                        <div className="pt-2 border-t border-white/10 flex justify-between gap-10 items-center"><span className="text-[10px] font-black text-brand uppercase tracking-widest">当日合计</span><span className="text-sm font-black text-brand tabular-nums">{formatVal(data[hoverIndex].total)}</span></div>
                     </div>
                 </div>
             )}
@@ -530,7 +545,6 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
 const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBetter = true, color, bg, isLoading, isActive, onClick }: any) => {
     const calculateChange = (curr: number, prev: number) => prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
     const formatVal = (v: number) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
-    
     const totalChange = calculateChange(value.total.current, value.total.previous);
     const selfChange = calculateChange(value.self.current, value.self.previous);
     const popChange = calculateChange(value.pop.current, value.pop.previous);
