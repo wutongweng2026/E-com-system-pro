@@ -115,20 +115,30 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
 const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[], chartMetrics: Set<string>, metricsMap: Map<string, any> }) => {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    
     if (dailyData.length < 2 || chartMetrics.size === 0) return (
-        <div className="h-64 flex flex-col items-center justify-center text-slate-300 gap-4 opacity-40">
+        <div className="h-32 flex flex-col items-center justify-center text-slate-300 gap-4 opacity-40">
             <BarChart3 size={48} strokeWidth={1} />
             <p className="text-[10px] font-black uppercase tracking-widest">请勾选上方卡片指标以激活全维度趋势流</p>
         </div>
     );
-    const width = 1000; const height = 300; const padding = { top: 40, right: 40, bottom: 50, left: 60 };
+
+    // 高度减半：从 300 降至 150
+    const width = 1000; const height = 150; 
+    const padding = { top: 20, right: 40, bottom: 30, left: 60 };
+    
     const selectedMetricsData = Array.from(chartMetrics);
     const metricMaxMap = new Map<string, number>();
     selectedMetricsData.forEach(key => metricMaxMap.set(key, Math.max(...dailyData.map(d => d[key] || 0), 0.0001)));
+    
     const xScale = (i: number) => padding.left + (i / (dailyData.length - 1)) * (width - padding.left - padding.right);
-    const yScale = (v: number, key: string) => { const max = metricMaxMap.get(key) || 1; return height - padding.bottom - (v / max) * (height - padding.top - padding.bottom); };
+    const yScale = (v: number, key: string) => { 
+        const max = metricMaxMap.get(key) || 1; 
+        return height - padding.bottom - (v / max) * (height - padding.top - padding.bottom); 
+    };
+
     return (
-        <div ref={containerRef} className="relative pt-12 font-sans" onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(e) => {
+        <div ref={containerRef} className="relative pt-6 font-sans" onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(e) => {
             if (!containerRef.current) return;
             const rect = containerRef.current.getBoundingClientRect();
             const x = ((e.clientX - rect.left) / rect.width) * width;
@@ -138,7 +148,10 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
             <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible cursor-crosshair">
                 <defs>
                     {selectedMetricsData.map(key => (
-                        <linearGradient key={`g-${key}`} id={`g-${key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={METRIC_COLORS[key]} stopOpacity="0.2"/><stop offset="100%" stopColor={METRIC_COLORS[key]} stopOpacity="0"/></linearGradient>
+                        <linearGradient key={`g-${key}`} id={`g-${key}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={METRIC_COLORS[key]} stopOpacity="0.15"/>
+                            <stop offset="100%" stopColor={METRIC_COLORS[key]} stopOpacity="0"/>
+                        </linearGradient>
                     ))}
                 </defs>
                 <line x1={padding.left} y1={height-padding.bottom} x2={width-padding.right} y2={height-padding.bottom} stroke="#f1f5f9" strokeWidth="2" />
@@ -147,7 +160,8 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
                     return (
                         <g key={key} className="transition-all duration-700">
                             <path d={`M ${xScale(0)},${height-padding.bottom} L ${pts} L ${xScale(dailyData.length-1)},${height-padding.bottom} Z`} fill={`url(#g-${key})`} />
-                            <path d={`M ${pts}`} fill="none" stroke={METRIC_COLORS[key]} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                            {/* 线宽从 4 减至 2 */}
+                            <path d={`M ${pts}`} fill="none" stroke={METRIC_COLORS[key]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </g>
                     );
                 })}
