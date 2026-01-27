@@ -1,17 +1,33 @@
 
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, BarChart, ShoppingBag, Activity, CreditCard, Target, ArrowUp, ArrowDown, Zap, Sparkles, Bot as BotIcon, ChevronRight } from 'lucide-react';
+import { TrendingUp, BarChart, ShoppingBag, Activity, CreditCard, Target, ArrowUp, ArrowDown, Zap, Sparkles, Bot as BotIcon, ChevronRight, Calendar } from 'lucide-react';
 import { DB } from '../lib/db';
+
+type RangeType = '7d' | '30d' | 'custom';
 
 export const DashboardView = ({ addToast }: any) => {
     const [isLoading, setIsLoading] = useState(true);
+    const [rangeType, setRangeType] = useState<RangeType>('7d');
+    const [customRange, setCustomRange] = useState({
+        start: new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0],
+        end: new Date().toISOString().split('T')[0]
+    });
     const [data, setData] = useState<any>({ current: { gmv: 0, ca: 0, spend: 0, roi: 0 } });
 
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
-            const end = new Date().toISOString().split('T')[0];
-            const start = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+            let start: string;
+            let end = new Date().toISOString().split('T')[0];
+
+            if (rangeType === '7d') {
+                start = new Date(Date.now() - 6 * 86400000).toISOString().split('T')[0];
+            } else if (rangeType === '30d') {
+                start = new Date(Date.now() - 29 * 86400000).toISOString().split('T')[0];
+            } else {
+                start = customRange.start;
+                end = customRange.end;
+            }
             
             try {
                 const [currSz, currJzt] = await Promise.all([
@@ -33,16 +49,16 @@ export const DashboardView = ({ addToast }: any) => {
             } catch (e) {
                 console.error(e);
             } finally {
-                setTimeout(() => setIsLoading(false), 500);
+                setTimeout(() => setIsLoading(false), 300);
             }
         };
         fetchData();
-    }, []);
+    }, [rangeType, customRange]);
 
     return (
         <div className="p-6 md:p-10 w-full animate-fadeIn space-y-8">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
@@ -52,21 +68,50 @@ export const DashboardView = ({ addToast }: any) => {
                     <p className="text-slate-500 font-medium text-xs mt-1 italic">Intelligence Data Hub & Decision Engine</p>
                 </div>
                 
-                <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
-                    {['近 7 天', '近 30 天'].map((label, idx) => (
-                        <button key={label} className={`px-4 py-1.5 rounded-lg text-xs font-black ${idx === 0 ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>
-                            {label}
-                        </button>
-                    ))}
+                <div className="flex flex-col items-end gap-3">
+                    <div className="flex bg-slate-100 p-1 rounded-xl w-fit border border-slate-200 shadow-inner">
+                        {[
+                            { id: '7d', label: '近 7 天' },
+                            { id: '30d', label: '近 30 天' },
+                            { id: 'custom', label: '自定义' }
+                        ].map((item) => (
+                            <button 
+                                key={item.id} 
+                                onClick={() => setRangeType(item.id as RangeType)}
+                                className={`px-5 py-1.5 rounded-lg text-xs font-black transition-all ${rangeType === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    {rangeType === 'custom' && (
+                        <div className="flex items-center gap-2 animate-slideIn bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+                            <Calendar size={14} className="text-slate-400 ml-1" />
+                            <input 
+                                type="date" 
+                                value={customRange.start}
+                                onChange={e => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                                className="text-[10px] font-black text-slate-600 border-none outline-none bg-transparent" 
+                            />
+                            <span className="text-slate-300">-</span>
+                            <input 
+                                type="date" 
+                                value={customRange.end}
+                                onChange={e => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                                className="text-[10px] font-black text-slate-600 border-none outline-none bg-transparent" 
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* KPI Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-                <KPICard title="总销售额 (GMV)" value={`¥${data.current.gmv.toLocaleString()}`} change={+12} icon={<ShoppingBag size={20}/>} color="text-brand" bg="bg-brand/5" />
-                <KPICard title="成交件数 (CA)" value={data.current.ca.toLocaleString()} change={+4} icon={<Activity size={20}/>} color="text-blue-600" bg="bg-blue-50" />
-                <KPICard title="投放总花费" value={`¥${data.current.spend.toLocaleString()}`} change={-2} icon={<CreditCard size={20}/>} isHigherBetter={false} color="text-amber-600" bg="bg-amber-50" />
-                <KPICard title="整体投产比 (ROI)" value={data.current.roi.toFixed(2)} change={+8} icon={<Target size={20}/>} color="text-purple-600" bg="bg-purple-50" />
+                <KPICard title="总销售额 (GMV)" value={`¥${Math.round(data.current.gmv).toLocaleString()}`} change={+12} icon={<ShoppingBag size={20}/>} color="text-brand" bg="bg-brand/5" isLoading={isLoading} />
+                <KPICard title="成交件数 (CA)" value={data.current.ca.toLocaleString()} change={+4} icon={<Activity size={20}/>} color="text-blue-600" bg="bg-blue-50" isLoading={isLoading} />
+                <KPICard title="投放总花费" value={`¥${Math.round(data.current.spend).toLocaleString()}`} change={-2} icon={<CreditCard size={20}/>} isHigherBetter={false} color="text-amber-600" bg="bg-amber-50" isLoading={isLoading} />
+                <KPICard title="整体投产比 (ROI)" value={data.current.roi.toFixed(1)} change={+8} icon={<Target size={20}/>} color="text-purple-600" bg="bg-purple-50" isLoading={isLoading} />
             </div>
 
             {/* Content Body */}
@@ -114,15 +159,19 @@ export const DashboardView = ({ addToast }: any) => {
     );
 };
 
-const KPICard = ({ title, value, change, icon, isHigherBetter = true, color, bg }: any) => (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+const KPICard = ({ title, value, change, icon, isHigherBetter = true, color, bg, isLoading }: any) => (
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
         <div className="flex justify-between items-center mb-4">
-            <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center ${color}`}>{icon}</div>
+            <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center ${color} group-hover:scale-110 transition-transform`}>{icon}</div>
             <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black ${((change > 0 && isHigherBetter) || (change < 0 && !isHigherBetter)) ? 'bg-green-50 text-green-600' : 'bg-rose-50 text-rose-600'}`}>
                 {change >= 0 ? <ArrowUp size={10} /> : <ArrowDown size={10} />} {Math.abs(change)}%
             </div>
         </div>
-        <p className="text-2xl font-black text-slate-900 tabular-nums">{value}</p>
+        {isLoading ? (
+            <div className="h-8 w-32 bg-slate-50 animate-pulse rounded"></div>
+        ) : (
+            <p className="text-2xl font-black text-slate-900 tabular-nums">{value}</p>
+        )}
         <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{title}</h3>
     </div>
 );

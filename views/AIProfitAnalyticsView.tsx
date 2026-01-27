@@ -85,7 +85,6 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                     
                     const revenue = Number(r.paid_amount) || 0;
                     const cogs = (skuInfo.costPrice || 0) * (Number(r.paid_items) || 0);
-                    const adSpendForThisRecord = 0; // JZT distribution is simplified here to SKU level
                     
                     const entry = profitMap.get(skuCode) || {
                         skuName: skuInfo.name,
@@ -202,25 +201,30 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
     const formatPercent = (val: number) => `${(val * 100).toFixed(2)}%`;
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn space-y-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">AI 利润分析</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">SKU-LEVEL PROFIT INTELLIGENCE</p>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">财务模型穿透中</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 利润分析</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">SKU-Level Profit Intelligence & Margin Diagnostics</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-200">
-                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-600 px-3 py-1 outline-none" />
-                        <span className="text-slate-300 self-center">-</span>
-                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-bold text-slate-600 px-3 py-1 outline-none" />
+                    <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200">
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-transparent border-none text-xs font-black text-slate-600 px-3 py-1 outline-none" />
+                        <span className="text-slate-300 self-center font-bold">-</span>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-transparent border-none text-xs font-black text-slate-600 px-3 py-1 outline-none" />
                     </div>
                     <div className="relative" ref={shopDropdownRef}>
-                        <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="min-w-[160px] bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-700 flex justify-between items-center shadow-sm">
+                        <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="min-w-[160px] bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black text-slate-700 flex justify-between items-center shadow-sm">
                             <span className="truncate">{selectedShopIds.length === 0 ? '全部店铺' : `已选 ${selectedShopIds.length} 个`}</span>
                             <ChevronDown size={14} className="ml-2 text-slate-400" />
                         </button>
                         {isShopDropdownOpen && (
-                            <div className="absolute top-full right-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
+                            <div className="absolute top-full right-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto no-scrollbar">
                                 {shops.map(shop => (
                                     <label key={shop.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
                                         <input type="checkbox" checked={selectedShopIds.includes(shop.id)} onChange={() => handleToggleShop(shop.id)} className="form-checkbox h-4 w-4 text-[#70AD47] rounded" />
@@ -242,12 +246,12 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                     { title: '总净利润', value: formatCurrency(kpis.totalNetProfit), highlight: kpis.totalNetProfit < 0 },
                     { title: '平均净利润率', value: formatPercent(kpis.avgNetProfitMargin), highlight: kpis.avgNetProfitMargin < 0 },
                 ].map(k => (
-                    <div key={k.title} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{k.title}</h4>
+                    <div key={k.title} className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 group hover:shadow-md transition-all">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{k.title}</h4>
                         {isLoading ? (
                             <div className="h-8 bg-slate-50 animate-pulse rounded mt-2 w-3/4"></div>
                         ) : (
-                            <p className={`text-2xl font-black mt-2 ${k.highlight ? 'text-rose-500' : 'text-slate-800'}`}>{k.value}</p>
+                            <p className={`text-2xl font-black mt-2 tracking-tight ${k.highlight ? 'text-rose-500' : 'text-slate-900'}`}>{k.value}</p>
                         )}
                     </div>
                 ))}
@@ -268,11 +272,11 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                                 ))}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-50">
                             {isLoading ? (
-                                <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-bold animate-pulse">正在穿透海量记录计算利润...</td></tr>
+                                <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-black animate-pulse uppercase tracking-[0.2em]">正在穿透海量记录计算利润...</td></tr>
                             ) : sortedTableData.length === 0 ? (
-                                <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-bold italic">当前周期无销售记录</td></tr>
+                                <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-black italic">当前周期无销售记录</td></tr>
                             ) : (
                                 sortedTableData.map(row => (
                                     <tr key={row.skuCode} className="hover:bg-slate-50 transition-colors group">
@@ -283,8 +287,8 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                                         <td className="py-4 px-2 border-b border-slate-50 font-mono font-bold text-slate-600">{formatCurrency(row.revenue)}</td>
                                         <td className="py-4 px-2 border-b border-slate-50 font-mono text-slate-500">{formatCurrency(row.grossProfit)}</td>
                                         <td className="py-4 px-2 border-b border-slate-50 font-mono text-rose-400">{formatCurrency(row.adSpend)}</td>
-                                        <td className={`py-4 px-2 border-b border-slate-50 font-mono font-black ${row.netProfit < 0 ? 'text-rose-500' : 'text-green-600'}`}>{formatCurrency(row.netProfit)}</td>
-                                        <td className={`py-4 px-2 border-b border-slate-50 font-mono font-black ${row.netProfitMargin < 0 ? 'text-rose-500' : 'text-green-600'}`}>{formatPercent(row.netProfitMargin)}</td>
+                                        <td className={`py-4 px-2 border-b border-slate-50 font-mono font-black ${row.netProfit < 0 ? 'text-rose-500' : 'text-brand'}`}>{formatCurrency(row.netProfit)}</td>
+                                        <td className={`py-4 px-2 border-b border-slate-50 font-mono font-black ${row.netProfitMargin < 0 ? 'text-rose-500' : 'text-brand'}`}>{formatPercent(row.netProfitMargin)}</td>
                                     </tr>
                                 ))
                             )}
@@ -292,19 +296,19 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                      </table>
                 </div>
                  <div className="bg-white rounded-3xl p-8 shadow-sm border border-slate-100 h-fit">
-                     <h3 className="font-black text-slate-800 flex items-center gap-2 mb-6">
+                     <h3 className="font-black text-slate-800 flex items-center gap-2 mb-6 tracking-tight">
                          <Bot size={20} className="text-[#70AD47]"/> 
                          AI 盈利诊断官
                      </h3>
                      <button 
                         onClick={handleAiAnalysis} 
                         disabled={isAiLoading || sortedTableData.length === 0} 
-                        className="w-full mb-6 py-3 rounded-2xl bg-[#70AD47] text-white font-black text-xs shadow-lg shadow-[#70AD47]/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-2 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
+                        className="w-full mb-6 py-3 rounded-2xl bg-[#70AD47] text-white font-black text-xs shadow-lg shadow-[#70AD47]/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-2 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none uppercase tracking-widest"
                     >
                         {isAiLoading ? <LoaderCircle size={16} className="animate-spin" /> : <DollarSign size={16} />}
                         执行深度盈利诊断
                     </button>
-                    <div className="bg-slate-50/70 rounded-2xl p-6 min-h-[300px]">
+                    <div className="bg-slate-50/70 rounded-[32px] p-8 min-h-[300px] border border-slate-100">
                         {isAiLoading ? (
                              <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                 <LoaderCircle size={28} className="animate-spin mb-4" />
@@ -317,8 +321,8 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
                         ) : (
                              <div className="flex flex-col items-center justify-center h-full text-slate-300 text-center opacity-60">
                                  <Bot size={48} className="mb-4" />
-                                 <p className="text-xs font-black uppercase tracking-widest">Awaiting Analysis</p>
-                                 <p className="text-[10px] mt-2 font-bold">点击上方按钮启动审计</p>
+                                 <p className="text-xs font-black uppercase tracking-widest">Awaiting Audit</p>
+                                 <p className="text-[10px] mt-2 font-bold">点击上方按钮启动物理层审计</p>
                              </div>
                         )}
                     </div>

@@ -78,7 +78,7 @@ const DetailedReportDisplay = ({ reports, mainTitle, aiCommentary, isAiLoading }
     const adHeaders = ['展现量', '点击数', '广告消耗', '直接单量', '直接金额', '总单量', '总金额', 'ROI', 'CPC'];
 
     return (
-        <div className="p-6 animate-fadeIn bg-white rounded-2xl shadow-sm border border-slate-100 mt-8">
+        <div className="p-6 animate-fadeIn bg-white rounded-3xl shadow-sm border border-slate-100 mt-8">
             <div className="flex justify-between items-start mb-6 pb-4 border-b border-slate-200">
                 <div>
                     <h2 className="text-2xl font-black text-slate-800">{mainTitle}</h2>
@@ -90,7 +90,7 @@ const DetailedReportDisplay = ({ reports, mainTitle, aiCommentary, isAiLoading }
             </div>
 
             {/* AI Commentary Section */}
-            <div className="mb-8 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="mb-8 p-6 bg-slate-50 rounded-[32px] border border-slate-100">
                 <h3 className="flex items-center gap-2 text-sm font-black text-slate-700 mb-3">
                     <Bot size={18} className="text-[#70AD47]" />
                     AI 运营综述与决策建议
@@ -107,7 +107,7 @@ const DetailedReportDisplay = ({ reports, mainTitle, aiCommentary, isAiLoading }
                 )}
             </div>
             
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full border-collapse text-[11px] min-w-[1200px]">
                     <tbody>
                         {reports.map((report) => (
@@ -259,7 +259,6 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
                 
                 const calculateForPeriod = (start: string, end: string) => {
                     // 1. 反向穿透：从物理表(fact_shangzhi)中找出该店铺的所有SKU编码
-                    // 解决“上传日志补齐了店铺名但资产管理未录入”导致的搜索不出结果问题
                     const physicalShopSkuCodes = new Set<string>();
                     factTables.shangzhi.forEach((r: any) => {
                         if (r.shop_name === shop.name) {
@@ -377,23 +376,29 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
         } catch (e) {
             setAiCommentary("无法连接AI服务进行诊断分析。");
         } finally {
+            setIsLoading(false);
             setIsAiLoading(false);
         }
     };
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-            <div className="flex items-center justify-between mb-8">
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">运营报表中心</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Automated Performance Reports</p>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">自动化审计引擎就绪</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">运营报表中心</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Automated Performance Reports & Multi-Shop Audit</p>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-wrap items-end gap-4">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-wrap items-end gap-4">
                 {/* Date Selection */}
                 <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase">设定时间范围</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">设定时间范围</label>
                     <div className="flex items-center gap-2">
                         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold outline-none focus:border-[#70AD47]" />
                         <span className="text-slate-300 font-bold">-</span>
@@ -403,13 +408,13 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
 
                 {/* Shop Filter */}
                 <div className="space-y-1 relative" ref={shopDropdownRef}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase">店铺范围</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">店铺范围</label>
                     <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center shadow-sm">
                         <span className="truncate">{selectedShopIds.length === 0 ? '全部店铺' : `已选 ${selectedShopIds.length} 个`}</span>
                         <ChevronDown size={16} className="text-slate-400" />
                     </button>
                     {isShopDropdownOpen && (
-                        <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
+                        <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto no-scrollbar">
                             {shops.map(shop => (
                                 <label key={shop.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
                                     <input 
@@ -428,13 +433,13 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
 
                 {/* SKU List Filter */}
                 <div className="space-y-1 relative" ref={listDropdownRef}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase">SKU清单限制</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">SKU清单限制</label>
                     <button onClick={() => setIsListDropdownOpen(!isListDropdownOpen)} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 flex justify-between items-center shadow-sm">
                         <span className="truncate">{selectedListIds.length === 0 ? '不限清单' : `已选 ${selectedListIds.length} 个`}</span>
                         <ChevronDown size={16} className="text-slate-400" />
                     </button>
                     {isListDropdownOpen && (
-                        <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto">
+                        <div className="absolute top-full left-0 w-64 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 p-2 max-h-60 overflow-y-auto no-scrollbar">
                             {skuLists.length === 0 ? (
                                 <div className="p-4 text-center text-xs text-slate-400 font-bold">暂无可用清单</div>
                             ) : skuLists.map(list => (

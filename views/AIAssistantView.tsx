@@ -4,7 +4,8 @@ import { MessageCircle, Bot, ChevronDown, Sparkles, LoaderCircle, AlertCircle, C
 import { ProductSKU, Shop } from '../lib/types';
 import { GoogleGenAI } from "@google/genai";
 
-export const AIAssistantView = ({ skus, shops }: { skus: ProductSKU[], shops: Shop[] }) => {
+// Fixed: Added addToast to the component props type definition
+export const AIAssistantView = ({ skus, shops, addToast }: { skus: ProductSKU[], shops: Shop[], addToast: any }) => {
     const [selectedSkuId, setSelectedSkuId] = useState<string>('');
     const [question, setQuestion] = useState('');
     const [response, setResponse] = useState('');
@@ -59,14 +60,32 @@ export const AIAssistantView = ({ skus, shops }: { skus: ProductSKU[], shops: Sh
     };
 
     return (
-        <div className="p-8 max-w-[1200px] mx-auto animate-fadeIn">
-            <div className="mb-10">
-                <h1 className="text-3xl font-black text-slate-800 tracking-tight">智能客服助手</h1>
-                <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">AI-Powered CS Copilot</p>
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">智能客服大脑就绪</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">智能客服助手</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">AI-Powered Customer Service Copilot & Knowledge Hub</p>
+                </div>
+                <div className="flex items-center gap-4 bg-white border border-slate-100 p-2 rounded-xl shadow-sm">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">挂载商品资产:</label>
+                    <select 
+                        value={selectedSkuId} 
+                        onChange={e => setSelectedSkuId(e.target.value)}
+                        className="bg-slate-50 border border-slate-100 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none focus:border-[#70AD47] min-w-[200px]"
+                    >
+                        <option value="">通用问答模式</option>
+                        {skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                </div>
             </div>
 
-            <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[700px]">
-                {/* Header */}
+            <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden flex flex-col h-[650px]">
+                {/* Internal Chat Header */}
                 <div className="bg-slate-50 px-8 py-4 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-[#70AD47] rounded-full flex items-center justify-center text-white shadow-lg shadow-[#70AD47]/20">
@@ -79,23 +98,12 @@ export const AIAssistantView = ({ skus, shops }: { skus: ProductSKU[], shops: Sh
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <label className="text-[10px] font-black text-slate-400 uppercase">当前关联商品:</label>
-                        <select 
-                            value={selectedSkuId} 
-                            onChange={e => setSelectedSkuId(e.target.value)}
-                            className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-600 outline-none focus:border-[#70AD47]"
-                        >
-                            <option value="">通用模式</option>
-                            {skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                    </div>
                 </div>
 
                 {/* Chat Area */}
-                <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50/30">
+                <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50/30 no-scrollbar">
                     {question && (
-                        <div className="flex justify-end gap-3">
+                        <div className="flex justify-end gap-3 animate-slideIn">
                             <div className="bg-slate-800 text-white px-5 py-3 rounded-2xl rounded-tr-none text-sm font-medium shadow-sm max-w-[70%]">
                                 {question}
                             </div>
@@ -117,8 +125,9 @@ export const AIAssistantView = ({ skus, shops }: { skus: ProductSKU[], shops: Sh
                             </div>
                             <div className="bg-white border border-slate-100 px-5 py-3 rounded-2xl rounded-tl-none text-sm font-bold text-slate-700 shadow-sm max-w-[80%] leading-relaxed">
                                 {response}
+                                {/* Fixed: addToast is now correctly destructured from props */}
                                 <button 
-                                    onClick={() => {navigator.clipboard.writeText(response);}}
+                                    onClick={() => {navigator.clipboard.writeText(response); addToast('success', '复制成功', '话术已存入剪贴板');}}
                                     className="block mt-3 text-[10px] text-[#70AD47] hover:underline"
                                 >
                                     点击复制回复话术

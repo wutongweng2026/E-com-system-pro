@@ -56,7 +56,7 @@ const AddFieldModal = ({ isOpen, onClose, onConfirm, existingKeys }: { isOpen: b
     const handleLabelChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newLabel = e.target.value;
         setLabel(newLabel);
-        const suggestedKey = `custom_${newLabel.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '_')}`;
+        const suggestedKey = `custom_${newLabel.toLowerCase().replace(/[^a-z0-9_]/g, '').replace(/\s+/g, '_')}`;
         setKey(suggestedKey);
     };
 
@@ -479,10 +479,17 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                 field={editingField}
             />
 
-            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn space-y-8">
-                <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">数据体验中心</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">物理层数据清洗与元数据治理</p>
+            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+                {/* Header - Standardized */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层数据治理中</span>
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">数据体验中心</h1>
+                        <p className="text-slate-500 font-medium text-xs mt-1 italic">Physical Data Governance & Metadata Management</p>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[700px] flex flex-col">
@@ -606,7 +613,6 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                                     </div>
                                     <div className="flex gap-2">
                                         <button onClick={resetFilters} className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">
-                                            {/* Fix typo 'RefreshCcw' to 'RefreshCw' and use the imported icon component. */}
                                             <RefreshCw size={14} /> 清空
                                         </button>
                                         <button onClick={handleExecuteSearch} className="flex-1 px-4 py-2 bg-[#70AD47] text-white rounded-lg text-xs font-bold hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all active:scale-95">

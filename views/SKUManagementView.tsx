@@ -8,15 +8,6 @@ import { ConfirmModal } from '../components/ConfirmModal';
 
 
 // ADD/EDIT MODALS
-// Fix: Updated return types to allow Promise<boolean> for async operations
-const AddSKUModal = ({ isOpen, onClose, onConfirm, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: Omit<ProductSKU, 'id'>) => Promise<boolean> | boolean, shops: Shop[], addToast: any }) => {
-    return <SKUFormModal isOpen={isOpen} onClose={onClose} onConfirm={onConfirm} shops={shops} addToast={addToast} title="新增 SKU 资产" confirmText="确认新增" />;
-};
-
-const EditSKUModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast }: { isOpen: boolean, onClose: () => void, onConfirm: (sku: ProductSKU) => Promise<boolean> | boolean, skuToEdit: ProductSKU, shops: Shop[], addToast: any }) => {
-    return <SKUFormModal isOpen={isOpen} onClose={onClose} onConfirm={onConfirm} skuToEdit={skuToEdit} shops={shops} addToast={addToast} title="更新 SKU 资产" confirmText="确认更新" />;
-};
-
 const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, title, confirmText }: any) => {
     const [code, setCode] = useState('');
     const [name, setName] = useState('');
@@ -61,7 +52,6 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
         }
     }, [isOpen, skuToEdit, shops]);
 
-    // Fix: Added async/await for onConfirm call
     const handleConfirm = async () => {
         setError('');
         if (!code.trim() || !name.trim() || !shopId) {
@@ -97,8 +87,8 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 m-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 m-4 max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-800">{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -222,7 +212,6 @@ const ShopFormModal = ({ isOpen, onClose, onConfirm, shopToEdit, title, confirmT
         }
     }, [isOpen, shopToEdit]);
 
-    // Fix: Added async/await for onConfirm call
     const handleConfirm = async () => {
         if (!name.trim()) {
             setError('店铺名称不能为空。');
@@ -237,8 +226,8 @@ const ShopFormModal = ({ isOpen, onClose, onConfirm, shopToEdit, title, confirmT
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-800">{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -291,7 +280,6 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
         );
     };
 
-    // Fix: Added async/await for onConfirm call
     const handleConfirm = async () => {
         if (!name.trim() || !account.trim()) {
             setError('姓名和客服账号不能为空。');
@@ -306,8 +294,8 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4" onClick={e => e.stopPropagation()}>
                  <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-800">{title}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -323,7 +311,7 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
                     </div>
                      <div>
                         <label className="block text-sm font-bold text-slate-600 mb-2">关联店铺</label>
-                        <div className="max-h-32 overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1">
+                        <div className="max-h-32 overflow-y-auto bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1 no-scrollbar">
                             {shops.map((shop:Shop) => (
                                 <label key={shop.id} className="flex items-center gap-2 p-2 rounded hover:bg-slate-100 cursor-pointer">
                                     <input 
@@ -361,7 +349,6 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
         }
     }, [isOpen, listToEdit]);
 
-    // Fix: Added async/await for onConfirm call
     const handleConfirm = async () => {
         if (!name.trim()) {
             setError('清单名称不能为空。');
@@ -381,8 +368,8 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 m-4">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-bold text-slate-800">{listToEdit ? '编辑SKU清单' : '创建新SKU清单'}</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
@@ -398,7 +385,7 @@ const SkuListFormModal = ({ isOpen, onClose, onConfirm, listToEdit }: { isOpen: 
                             value={skuCodes}
                             onChange={e => setSkuCodes(e.target.value)}
                             placeholder="每行一个SKU，或用逗号分隔"
-                            className="w-full h-48 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none font-mono"
+                            className="w-full h-48 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none font-mono no-scrollbar"
                         />
                     </div>
                 </div>
@@ -418,7 +405,6 @@ interface SKUManagementViewProps {
     skus: ProductSKU[];
     agents: CustomerServiceAgent[];
     skuLists: SkuList[];
-    // Fix: Updated callback return types to support async/await from App.tsx
     onAddNewSKU: (skuData: Omit<ProductSKU, 'id'>) => Promise<boolean> | boolean;
     onUpdateSKU: (skuData: ProductSKU) => Promise<boolean> | boolean;
     onDeleteSKU: (id: string) => void;
@@ -669,6 +655,26 @@ export const SKUManagementView = ({
         addToast('success', '导出成功', `已成功导出数据。`);
     };
 
+    const getViewTitle = () => {
+        switch(activeTab) {
+            case 'sku': return 'SKU 资产管理';
+            case 'shop': return '店铺名录';
+            case 'agent': return '客服管理';
+            case 'list': return 'SKU 清单';
+            default: return '资产管理';
+        }
+    };
+
+    const getViewSubtitle = () => {
+        switch(activeTab) {
+            case 'sku': return 'SKU & Store Master Data Governance';
+            case 'shop': return 'Shop Asset Overview & Configuration';
+            case 'agent': return 'Customer Service Agent Management';
+            case 'list': return 'SKU List Management & Segments';
+            default: return 'Asset Management Hub';
+        }
+    };
+
     return (
         <>
             <ConfirmModal
@@ -703,47 +709,48 @@ export const SKUManagementView = ({
              <input type="file" ref={shopFileInputRef} onChange={(e) => handleFileSelected(e, 'shop')} accept=".xlsx, .xls" className="hidden" />
              <input type="file" ref={agentFileInputRef} onChange={(e) => handleFileSelected(e, 'agent')} accept=".xlsx, .xls" className="hidden" />
 
-            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-                <div className="flex items-center justify-between mb-8">
+            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+                {/* Standardized Header */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                     <div>
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-                            {activeTab === 'sku' ? 'SKU 资产管理' : activeTab === 'shop' ? '店铺名录' : activeTab === 'agent' ? '客服管理' : 'SKU 清单'}
-                        </h1>
-                        <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">
-                            {activeTab === 'sku' ? 'SKU & STORE MASTER DATA' : activeTab === 'shop' ? 'SHOP ASSET OVERVIEW' : activeTab === 'agent' ? 'CUSTOMER SERVICE AGENT MANAGEMENT' : 'SKU LIST MANAGEMENT'}
-                        </p>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">核心资产物理映射中</span>
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">{getViewTitle()}</h1>
+                        <p className="text-slate-500 font-medium text-xs mt-1 italic">{getViewSubtitle()}</p>
                     </div>
-                    <div className="flex bg-white rounded-xl p-1 shadow-sm border border-slate-100">
-                        <button onClick={() => setActiveTab('sku')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'sku' ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>SKU 资产列表</button>
-                        <button onClick={() => setActiveTab('shop')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'shop' ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>店铺名录</button>
-                        <button onClick={() => setActiveTab('agent')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'agent' ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>客服管理</button>
-                        <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'list' ? 'bg-[#70AD47] text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>SKU 清单</button>
+                    <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200">
+                        <button onClick={() => setActiveTab('sku')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${activeTab === 'sku' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>SKU 资产</button>
+                        <button onClick={() => setActiveTab('shop')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${activeTab === 'shop' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>店铺名录</button>
+                        <button onClick={() => setActiveTab('agent')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${activeTab === 'agent' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>客服管理</button>
+                        <button onClick={() => setActiveTab('list')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${activeTab === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>SKU 清单</button>
                     </div>
                 </div>
 
                 {activeTab === 'sku' && (
                     <>
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8 space-y-6">
                             <div className="grid grid-cols-5 gap-4 mb-4">
                                <div className="relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">品牌</label>
-                                    <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">品牌</label>
+                                    <select value={selectedBrand} onChange={e => setSelectedBrand(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部品牌</option>
                                         {uniqueBrands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
                                     </select>
                                     <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
                                 </div>
                                 <div className="relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">品类</label>
-                                    <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">品类</label>
+                                    <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部品类</option>
                                         {uniqueCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                                     </select>
                                     <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
                                 </div>
                                  <div className="relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">状态</label>
-                                    <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">状态</label>
+                                    <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部状态</option>
                                         <option value="在售">在售</option>
                                         <option value="待售">待售</option>
@@ -752,8 +759,8 @@ export const SKUManagementView = ({
                                     <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
                                 </div>
                                  <div className="relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">广告</label>
-                                    <select value={selectedAdStatus} onChange={e => setSelectedAdStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">广告</label>
+                                    <select value={selectedAdStatus} onChange={e => setSelectedAdStatus(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部广告</option>
                                         <option value="在投">在投</option>
                                         <option value="未投">未投</option>
@@ -761,8 +768,8 @@ export const SKUManagementView = ({
                                     <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
                                 </div>
                                 <div className="relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">模式</label>
-                                    <select value={selectedMode} onChange={e => setSelectedMode(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">模式</label>
+                                    <select value={selectedMode} onChange={e => setSelectedMode(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部模式</option>
                                         <option value="入仓">入仓</option>
                                         <option value="厂直">厂直</option>
@@ -772,47 +779,41 @@ export const SKUManagementView = ({
                             </div>
                             <div className="grid grid-cols-5 gap-4 mb-6">
                                 <div className="col-span-1 relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">所属店铺</label>
-                                    <select value={selectedShop} onChange={e => setSelectedShop(e.target.value)} className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">所属店铺</label>
+                                    <select value={selectedShop} onChange={e => setSelectedShop(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm">
                                         <option value="all">全部店铺</option>
                                         {shops.map((s: Shop) => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                     <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
                                 </div>
-                                 <div className="col-span-1 relative">
-                                    <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">型号</label>
-                                    <select className="w-full bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none">
-                                        <option>全部型号</option>
-                                    </select>
-                                    <ChevronDown size={14} className="absolute right-3 bottom-2.5 text-slate-400 pointer-events-none" />
-                                </div>
                             </div>
 
-                             <div className="mb-6">
-                                 <label className="block text-[10px] font-bold text-slate-400 mb-1 ml-1">SKU 精准查询</label>
+                             <div className="pt-4 border-t border-slate-50">
+                                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">SKU 精准检索</label>
                                  <div className="flex gap-4">
-                                     <input placeholder="最多可输入100个SKU，以逗号或换行分隔" className="flex-1 bg-slate-50 border border-slate-100 rounded-lg px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47]" />
+                                     <input placeholder="最多可输入100个SKU，以逗号或换行分隔" className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]" />
                                      <div className="flex gap-2 shrink-0">
-                                          <button className="px-6 rounded-lg bg-slate-100 text-slate-600 font-bold text-xs hover:bg-slate-200 transition-colors">重置</button>
-                                          <button className="px-8 rounded-lg bg-[#70AD47] text-white font-bold text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all">查询</button>
+                                          <button className="px-6 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition-colors uppercase">重置</button>
+                                          <button className="px-8 rounded-xl bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all uppercase">检索</button>
                                      </div>
                                  </div>
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[400px]">
-                            <div className="flex justify-between items-center mb-6">
-                                <span className="text-xs font-bold text-slate-500">共 {sortedAndFilteredSkus.length} 条记录</span>
+                        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[400px]">
+                            <div className="flex justify-between items-center mb-8">
+                                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">已同步资产: {sortedAndFilteredSkus.length} / {skus.length}</span>
                                 <div className="flex gap-2">
-                                    <button onClick={() => handleDownloadTemplate('sku')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 下载模板</button>
-                                    <button onClick={() => skuFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><UploadCloud size={14} /> 批量导入</button>
-                                    <button onClick={() => handleBulkExport('sku')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 批量导出</button>
-                                    <button onClick={() => setIsAddSKUModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#70AD47] text-white font-bold text-xs hover:bg-[#5da035] shadow-md shadow-[#70AD47]/20"><Plus size={14} /> 新增资产</button>
+                                    <button onClick={() => handleDownloadTemplate('sku')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 transition-all shadow-sm"><Download size={14} /> 下载模板</button>
+                                    <button onClick={() => skuFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 transition-all shadow-sm"><UploadCloud size={14} /> 批量导入</button>
+                                    <button onClick={() => handleBulkExport('sku')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 transition-all shadow-sm"><Download size={14} /> 批量导出</button>
+                                    <button onClick={() => setIsAddSKUModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#70AD47] text-white font-black text-[10px] hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all"><Plus size={14} /> 新增资产</button>
                                 </div>
                             </div>
                             
-                            <table className="w-full text-sm table-fixed">
-                                <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <div className="overflow-x-auto no-scrollbar">
+                            <table className="w-full text-sm table-fixed min-w-[1000px]">
+                                <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                                     <tr>
                                         <th className="w-[16%] text-left pl-4 pb-4 border-b border-slate-100">SKU / 店铺</th>
                                         <th className="w-[12%] text-center pb-4 border-b border-slate-100">品牌 / 类目</th>
@@ -826,13 +827,13 @@ export const SKUManagementView = ({
                                         <th className="w-[8%] text-center pb-4 border-b border-slate-100">操作</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-slate-50">
                                     {skus.length === 0 ? (
                                         <tr>
                                             <td colSpan={10} className="py-20 text-center">
                                                 <div className="flex flex-col items-center justify-center text-slate-300">
                                                     <Package size={48} className="mb-4 opacity-20" />
-                                                    <p className="text-xs font-bold">暂无SKU数据</p>
+                                                    <p className="text-xs font-bold uppercase tracking-widest">暂无SKU数据</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -841,7 +842,7 @@ export const SKUManagementView = ({
                                             <td colSpan={10} className="py-20 text-center">
                                                 <div className="flex flex-col items-center justify-center text-slate-300">
                                                     <Package size={48} className="mb-4 opacity-20" />
-                                                    <p className="text-xs font-bold">暂无匹配的SKU资产</p>
+                                                    <p className="text-xs font-bold uppercase tracking-widest">暂无匹配的SKU资产</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -849,38 +850,42 @@ export const SKUManagementView = ({
                                         sortedAndFilteredSkus.map((sku: ProductSKU) => {
                                             const totalStock = (sku.warehouseStock || 0) + (sku.factoryStock || 0);
                                             return (
-                                                <tr key={sku.id} className="text-xs text-slate-600 hover:bg-slate-50 transition-colors">
+                                                <tr key={sku.id} className="text-xs text-slate-600 hover:bg-slate-50/50 transition-colors">
                                                     <td className="py-4 border-b border-slate-50 text-left pl-4 font-bold align-middle">
                                                         <div className="text-slate-800 truncate" title={sku.code}>{sku.code}</div>
-                                                        <div className="text-[10px] text-slate-400 font-normal mt-0.5 truncate" title={shops.find((s:Shop) => s.id === sku.shopId)?.name}>{shops.find((s:Shop) => s.id === sku.shopId)?.name || '未知店铺'}</div>
+                                                        <div className="text-[10px] text-slate-400 font-bold mt-0.5 truncate" title={shops.find((s:Shop) => s.id === sku.shopId)?.name}>{shops.find((s:Shop) => s.id === sku.shopId)?.name || '未知店铺'}</div>
                                                     </td>
-                                                    <td className="py-4 border-b border-slate-50 text-center align-middle">{sku.brand || '-'} / {sku.category || '-'}</td>
-                                                    <td className="py-4 border-b border-slate-50 text-center align-middle">{sku.model || '-'} / {sku.configuration || '-'}</td>
+                                                    <td className="py-4 border-b border-slate-50 text-center align-middle font-medium">{sku.brand || '-'} / {sku.category || '-'}</td>
+                                                    <td className="py-4 border-b border-slate-50 text-center align-middle font-medium">{sku.model || '-'} / {sku.configuration || '-'}</td>
                                                     <td className="py-4 border-b border-slate-50 text-center align-middle font-mono">{sku.mtm || '-'}</td>
                                                     <td className="py-4 border-b border-slate-50 font-mono text-[11px] text-right pr-2 leading-tight align-middle">
-                                                        <div className="text-orange-600"><span className="text-orange-500/80 mr-1">C:</span>{sku.costPrice ? `¥${sku.costPrice.toFixed(2)}` : '-'}</div>
-                                                        <div className="text-green-600 font-bold text-xs"><span className="text-green-500/80 mr-1">S:</span>{sku.sellingPrice ? `¥${sku.sellingPrice.toFixed(2)}` : '-'}</div>
-                                                        <div className="text-blue-600 font-bold"><span className="text-blue-500/80 mr-1">P:</span>{sku.promoPrice ? `¥${sku.promoPrice.toFixed(2)}` : '-'}</div>
+                                                        <div className="text-orange-600 font-bold"><span className="text-orange-400 mr-1 opacity-50">C:</span>{sku.costPrice ? `¥${sku.costPrice.toFixed(2)}` : '-'}</div>
+                                                        <div className="text-brand font-black text-xs"><span className="text-brand mr-1 opacity-50">S:</span>{sku.sellingPrice ? `¥${sku.sellingPrice.toFixed(2)}` : '-'}</div>
+                                                        <div className="text-blue-600 font-black"><span className="text-blue-400 mr-1 opacity-50">P:</span>{sku.promoPrice ? `¥${sku.promoPrice.toFixed(2)}` : '-'}</div>
                                                     </td>
-                                                    <td className="py-4 border-b border-slate-50 text-center align-middle"><span className="font-bold">{sku.mode || '-'}</span> / {sku.jdCommission ? `${sku.jdCommission}%` : '-'}</td>
-                                                    <td className="py-4 border-b border-slate-50 text-center align-middle">
-                                                        {sku.status === '在售' && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[10px] font-bold">在售</span>}
-                                                        {sku.status === '待售' && <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold">待售</span>}
-                                                        {sku.status === '下架' && <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[10px] font-bold">下架</span>}
+                                                    <td className="py-4 border-b border-slate-50 text-center align-middle font-bold">
+                                                        <span className="text-slate-800">{sku.mode || '-'}</span> 
+                                                        <span className="mx-1 text-slate-200">/</span>
+                                                        <span className="text-slate-500">{sku.jdCommission ? `${sku.jdCommission}%` : '-'}</span>
                                                     </td>
                                                     <td className="py-4 border-b border-slate-50 text-center align-middle">
-                                                        {sku.advertisingStatus === '在投' && <span className="bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[10px] font-bold">在投</span>}
-                                                        {sku.advertisingStatus === '未投' && <span className="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-[10px] font-bold">未投</span>}
+                                                        {sku.status === '在售' && <span className="bg-green-50 text-green-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">在售</span>}
+                                                        {sku.status === '待售' && <span className="bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">待售</span>}
+                                                        {sku.status === '下架' && <span className="bg-slate-100 text-slate-400 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">下架</span>}
+                                                    </td>
+                                                    <td className="py-4 border-b border-slate-50 text-center align-middle">
+                                                        {sku.advertisingStatus === '在投' && <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">在投</span>}
+                                                        {sku.advertisingStatus === '未投' && <span className="bg-slate-50 text-slate-400 px-2 py-0.5 rounded-md text-[10px] font-black uppercase">未投</span>}
                                                     </td>
                                                     <td className="py-4 border-b border-slate-50 font-mono text-[11px] leading-tight text-center align-middle">
-                                                        <div><span className="text-slate-400">仓:</span> {sku.warehouseStock ?? '-'}</div>
-                                                        <div><span className="text-slate-400">直:</span> {sku.factoryStock ?? '-'}</div>
-                                                        <div className="font-bold text-blue-600 border-t border-slate-200 mt-1 pt-1"><span className="text-slate-400">合:</span> {totalStock}</div>
+                                                        <div className="text-slate-500 font-bold"><span className="opacity-40">仓:</span> {sku.warehouseStock ?? '-'}</div>
+                                                        <div className="text-slate-500 font-bold"><span className="opacity-40">直:</span> {sku.factoryStock ?? '-'}</div>
+                                                        <div className="font-black text-brand border-t border-slate-100 mt-1 pt-1"><span className="opacity-40">合:</span> {totalStock}</div>
                                                     </td>
                                                     <td className="py-4 border-b border-slate-50 text-center align-middle">
-                                                        <div className="flex justify-center items-center gap-1 h-full">
-                                                            <button onClick={() => setEditingSku(sku)} className="text-slate-400 hover:text-[#70AD47] p-1"><Edit2 size={14} /></button>
-                                                            <button onClick={() => handleDeleteClick(sku, 'sku')} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                                                        <div className="flex justify-center items-center gap-1">
+                                                            <button onClick={() => setEditingSku(sku)} className="text-slate-300 hover:text-brand transition-colors p-1.5 hover:bg-brand/10 rounded-lg"><Edit2 size={14} /></button>
+                                                            <button onClick={() => handleDeleteClick(sku, 'sku')} className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 hover:bg-rose-50 rounded-lg"><Trash2 size={14} /></button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -889,23 +894,25 @@ export const SKUManagementView = ({
                                     )}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </>
                 )}
 
                 {activeTab === 'shop' && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[400px]">
-                         <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs font-bold text-slate-500">共 {shops.length} 条记录</span>
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[400px]">
+                         <div className="flex justify-between items-center mb-8">
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">已录入店铺: {shops.length}</span>
                             <div className="flex gap-2">
-                                <button onClick={() => handleDownloadTemplate('shop')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 下载模板</button>
-                                <button onClick={() => shopFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><UploadCloud size={14} /> 批量导入</button>
-                                <button onClick={() => handleBulkExport('shop')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 批量导出</button>
-                                <button onClick={() => setIsAddShopModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#70AD47] text-white font-bold text-xs hover:bg-[#5da035] shadow-md shadow-[#70AD47]/20"><Plus size={14} /> 新增店铺</button>
+                                <button onClick={() => handleDownloadTemplate('shop')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 下载模板</button>
+                                <button onClick={() => shopFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><UploadCloud size={14} /> 批量导入</button>
+                                <button onClick={() => handleBulkExport('shop')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 批量导出</button>
+                                <button onClick={() => setIsAddShopModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#70AD47] text-white font-black text-[10px] hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all"><Plus size={14} /> 新增店铺</button>
                             </div>
                         </div>
-                        <table className="w-full text-sm table-fixed">
-                            <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-sm table-fixed min-w-[900px]">
+                            <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                                 <tr>
                                     <th className="w-[22%] text-left pl-4 pb-4 border-b border-slate-100">店铺名称</th>
                                     <th className="w-[8%] text-center pb-4 border-b border-slate-100">经营模式</th>
@@ -918,13 +925,13 @@ export const SKUManagementView = ({
                                     <th className="w-[12%] text-center pr-4 pb-4 border-b border-slate-100">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-50">
                                 {shops.length === 0 ? (
                                     <tr>
                                         <td colSpan={9} className="py-20 text-center">
                                             <div className="flex flex-col items-center justify-center text-slate-300">
                                                 <Database size={48} className="mb-4 opacity-20" />
-                                                <p className="text-xs font-bold">暂无店铺数据</p>
+                                                <p className="text-xs font-bold uppercase tracking-widest">暂无店铺数据</p>
                                             </div>
                                         </td>
                                     </tr>
@@ -941,32 +948,32 @@ export const SKUManagementView = ({
                                     const totalFactoryStock = shopSkus.reduce((sum, sku) => sum + (sku.factoryStock || 0), 0);
                                     
                                     return (
-                                        <tr key={s.id} className="text-xs text-slate-600 hover:bg-slate-50 transition-colors">
-                                            <td className="py-4 border-b border-slate-50 text-left pl-4 font-bold text-slate-800">{s.name}</td>
-                                            <td className="py-4 border-b border-slate-50 text-center"><span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[10px] font-bold">{s.mode || '自营'}</span></td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">{s.platformId || '-'}</td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">{shopSkus.length}</td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">
-                                                <span title="在售" className="text-green-600 font-bold">{statusOnSale}</span> / 
-                                                <span title="待售" className="text-amber-600 font-bold">{statusPending}</span> / 
-                                                <span title="下架" className="text-slate-500 font-bold">{statusOffShelf}</span>
+                                        <tr key={s.id} className="text-xs text-slate-600 hover:bg-slate-50/50 transition-colors">
+                                            <td className="py-4 border-b border-slate-50 text-left pl-4 font-black text-slate-800">{s.name}</td>
+                                            <td className="py-4 border-b border-slate-50 text-center"><span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest">{s.mode || '自营'}</span></td>
+                                            <td className="py-4 border-b border-slate-50 text-center font-mono font-bold text-slate-400">{s.platformId || '-'}</td>
+                                            <td className="py-4 border-b border-slate-50 text-center font-black text-slate-800">{shopSkus.length}</td>
+                                            <td className="py-4 border-b border-slate-50 text-center font-bold">
+                                                <span title="在售" className="text-green-600">{statusOnSale}</span><span className="mx-1 opacity-20">/</span> 
+                                                <span title="待售" className="text-amber-600">{statusPending}</span><span className="mx-1 opacity-20">/</span> 
+                                                <span title="下架" className="text-slate-400">{statusOffShelf}</span>
                                             </td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">
-                                                <span title="在投" className="text-blue-600 font-bold">{adOn}</span> / 
-                                                <span title="未投" className="text-gray-500 font-bold">{adOff}</span>
+                                            <td className="py-4 border-b border-slate-50 text-center font-bold">
+                                                <span title="在投" className="text-blue-600">{adOn}</span><span className="mx-1 opacity-20">/</span> 
+                                                <span title="未投" className="text-slate-300">{adOff}</span>
                                             </td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">
-                                                <span title="入仓SKU数" className="text-purple-600 font-bold">{modeWarehouse}</span> / 
-                                                <span title="厂直SKU数" className="text-cyan-600 font-bold">{modeFactoryDirect}</span>
+                                            <td className="py-4 border-b border-slate-50 text-center font-bold">
+                                                <span title="入仓SKU数" className="text-purple-600">{modeWarehouse}</span><span className="mx-1 opacity-20">/</span> 
+                                                <span title="厂直SKU数" className="text-cyan-600">{modeFactoryDirect}</span>
                                             </td>
-                                            <td className="py-4 border-b border-slate-50 text-center font-mono">
-                                                <span title="入仓库存" className="text-sky-600 font-bold">{totalWarehouseStock}</span> / 
-                                                <span title="厂直库存" className="text-teal-600 font-bold">{totalFactoryStock}</span>
+                                            <td className="py-4 border-b border-slate-50 text-center font-bold">
+                                                <span title="入仓库存" className="text-sky-600">{totalWarehouseStock}</span><span className="mx-1 opacity-20">/</span> 
+                                                <span title="厂直库存" className="text-teal-600">{totalFactoryStock}</span>
                                             </td>
                                             <td className="py-4 border-b border-slate-50 text-center pr-4">
-                                                <div className="flex justify-center items-center gap-1 h-full">
-                                                    <button onClick={() => setEditingShop(s)} className="text-slate-400 hover:text-[#70AD47] p-1"><Edit2 size={14} /></button>
-                                                    <button onClick={() => handleDeleteClick(s, 'shop')} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                                                <div className="flex justify-center items-center gap-1">
+                                                    <button onClick={() => setEditingShop(s)} className="text-slate-300 hover:text-brand transition-colors p-1.5 hover:bg-brand/10 rounded-lg"><Edit2 size={14} /></button>
+                                                    <button onClick={() => handleDeleteClick(s, 'shop')} className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 hover:bg-rose-50 rounded-lg"><Trash2 size={14} /></button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -974,22 +981,24 @@ export const SKUManagementView = ({
                                 }))}
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'agent' && (
-                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[400px]">
-                        <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs font-bold text-slate-500">共 {agents.length} 条记录</span>
+                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[400px]">
+                        <div className="flex justify-between items-center mb-8">
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">在线席位: {agents.length}</span>
                              <div className="flex gap-2">
-                                <button onClick={() => handleDownloadTemplate('agent')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 下载模板</button>
-                                <button onClick={() => agentFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><UploadCloud size={14} /> 批量导入</button>
-                                <button onClick={() => handleBulkExport('agent')} className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50"><Download size={14} /> 批量导出</button>
-                                <button onClick={() => setIsAddAgentModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#70AD47] text-white font-bold text-xs hover:bg-[#5da035] shadow-md shadow-[#70AD47]/20"><Plus size={14} /> 新增客服</button>
+                                <button onClick={() => handleDownloadTemplate('agent')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 下载模板</button>
+                                <button onClick={() => agentFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><UploadCloud size={14} /> 批量导入</button>
+                                <button onClick={() => handleBulkExport('agent')} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 批量导出</button>
+                                <button onClick={() => setIsAddAgentModalOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#70AD47] text-white font-black text-[10px] hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all"><Plus size={14} /> 新增客服</button>
                             </div>
                         </div>
-                        <table className="w-full text-sm table-fixed">
-                            <thead className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <div className="overflow-x-auto no-scrollbar">
+                        <table className="w-full text-sm table-fixed min-w-[800px]">
+                            <thead className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
                                 <tr>
                                     <th className="w-[20%] text-left pl-4 pb-4 border-b border-slate-100">姓名</th>
                                     <th className="w-[20%] text-center pb-4 border-b border-slate-100">客服账号</th>
@@ -997,74 +1006,80 @@ export const SKUManagementView = ({
                                     <th className="w-[15%] text-center pr-4 pb-4 border-b border-slate-100">操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-50">
                                 {agents.length === 0 ? (
                                     <tr>
                                         <td colSpan={4} className="py-20 text-center">
                                             <div className="flex flex-col items-center justify-center text-slate-300">
                                                 <User size={48} className="mb-4 opacity-20" />
-                                                <p className="text-xs font-bold">暂无客服数据</p>
+                                                <p className="text-xs font-bold uppercase tracking-widest">暂无客服数据</p>
                                             </div>
                                         </td>
                                     </tr>
                                 ) : (agents.map((a: CustomerServiceAgent) => (
-                                    <tr key={a.id} className="text-xs text-slate-600 hover:bg-slate-50 transition-colors">
-                                        <td className="py-4 border-b border-slate-50 text-left pl-4 font-bold text-slate-800">{a.name}</td>
-                                        <td className="py-4 border-b border-slate-50 text-center">{a.account}</td>
+                                    <tr key={a.id} className="text-xs text-slate-600 hover:bg-slate-50/50 transition-colors">
+                                        <td className="py-4 border-b border-slate-50 text-left pl-4 font-black text-slate-800">{a.name}</td>
+                                        <td className="py-4 border-b border-slate-50 text-center font-bold text-slate-500">{a.account}</td>
                                         <td className="py-4 border-b border-slate-50 text-center">
                                             <div className="flex flex-wrap gap-1 justify-center">
-                                                {a.shopIds.map(sid => <span key={sid} className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px]">{shops.find((s:Shop)=>s.id===sid)?.name || sid}</span>)}
+                                                {a.shopIds.map(sid => <span key={sid} className="bg-slate-50 text-slate-500 border border-slate-100 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">{shops.find((s:Shop)=>s.id===sid)?.name || sid}</span>)}
                                             </div>
                                         </td>
                                         <td className="py-4 border-b border-slate-50 text-center pr-4">
-                                             <div className="flex justify-center items-center gap-1 h-full">
-                                                <button onClick={() => setEditingAgent(a)} className="text-slate-400 hover:text-[#70AD47] p-1"><Edit2 size={14} /></button>
-                                                <button onClick={() => handleDeleteClick(a, 'agent')} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                                             <div className="flex justify-center items-center gap-1">
+                                                <button onClick={() => setEditingAgent(a)} className="text-slate-300 hover:text-brand transition-colors p-1.5 hover:bg-brand/10 rounded-lg"><Edit2 size={14} /></button>
+                                                <button onClick={() => handleDeleteClick(a, 'agent')} className="text-slate-300 hover:text-rose-500 transition-colors p-1.5 hover:bg-rose-50 rounded-lg"><Trash2 size={14} /></button>
                                             </div>
                                         </td>
                                     </tr>
                                 )))}
                              </tbody>
                         </table>
+                        </div>
                     </div>
                 )}
 
                 {activeTab === 'list' && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[400px]">
-                        <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs font-bold text-slate-500">共 {skuLists.length} 个清单</span>
-                            <button onClick={() => { setEditingList(null); setIsListFormModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#70AD47] text-white font-bold text-xs hover:bg-[#5da035] shadow-md shadow-[#70AD47]/20"><Plus size={14} /> 创建新清单</button>
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[400px]">
+                        <div className="flex justify-between items-center mb-8">
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">逻辑分层清单: {skuLists.length}</span>
+                            <button onClick={() => { setEditingList(null); setIsListFormModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#70AD47] text-white font-black text-[10px] hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all uppercase"><Plus size={14} /> 创建新清单</button>
                         </div>
                         {skuLists.length === 0 ? (
                              <div className="py-20 text-center">
                                 <div className="flex flex-col items-center justify-center text-slate-300">
                                     <List size={48} className="mb-4 opacity-20" />
-                                    <p className="text-xs font-bold">暂无SKU清单</p>
+                                    <p className="text-xs font-bold uppercase tracking-widest">暂无SKU清单</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {skuLists.map(list => (
-                                    <div key={list.id} className="bg-slate-50 border border-slate-200/50 rounded-lg">
-                                        <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setExpandedListId(expandedListId === list.id ? null : list.id)}>
-                                            <div className="flex items-center gap-3">
-                                                <ChevronsUpDown size={16} className={`text-slate-400 transition-transform ${expandedListId === list.id ? 'rotate-180' : ''}`} />
-                                                <span className="font-bold text-slate-800">{list.name}</span>
-                                                <span className="text-xs text-slate-400">({list.skuCodes.length} SKUs)</span>
+                                    <div key={list.id} className="bg-slate-50/50 border border-slate-100 rounded-3xl overflow-hidden group hover:shadow-md transition-shadow">
+                                        <div className="flex items-center justify-between p-5 cursor-pointer" onClick={() => setExpandedListId(expandedListId === list.id ? null : list.id)}>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-brand group-hover:scale-110 transition-transform">
+                                                    <List size={18} />
+                                                </div>
+                                                <div>
+                                                    <span className="font-black text-slate-800 text-sm block">{list.name}</span>
+                                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{list.skuCodes.length} 个受控 SKU</span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); setEditingList(list); setIsListFormModalOpen(true); }} className="text-slate-400 hover:text-[#70AD47] p-1"><Edit2 size={14} /></button>
-                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(list, 'list'); }} className="text-slate-400 hover:text-rose-500 p-1"><Trash2 size={14} /></button>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={(e) => { e.stopPropagation(); setEditingList(list); setIsListFormModalOpen(true); }} className="text-slate-300 hover:text-brand p-2 rounded-lg hover:bg-white transition-colors"><Edit2 size={14} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); handleDeleteClick(list, 'list'); }} className="text-slate-300 hover:text-rose-500 p-2 rounded-lg hover:bg-white transition-colors"><Trash2 size={14} /></button>
+                                                <ChevronsUpDown size={16} className={`text-slate-300 ml-2 transition-transform ${expandedListId === list.id ? 'rotate-180' : ''}`} />
                                             </div>
                                         </div>
                                         {expandedListId === list.id && (
-                                            <div className="border-t border-slate-200 p-4 max-h-60 overflow-y-auto">
+                                            <div className="border-t border-slate-100 p-5 bg-white/50 max-h-60 overflow-y-auto no-scrollbar animate-fadeIn">
                                                 <ul className="space-y-1">
                                                     {list.skuCodes.map((code, idx) => (
-                                                        <li key={idx} className="flex justify-between text-xs p-1.5 rounded hover:bg-white">
-                                                            <code className="text-slate-500">{code}</code>
-                                                            <span className={`truncate ml-4 ${skuCodeToNameMap.has(code) ? 'text-slate-700' : 'text-rose-500 italic'}`}>
-                                                                {skuCodeToNameMap.get(code) || '(未找到该资产)'}
+                                                        <li key={idx} className="flex justify-between items-center text-[11px] p-2 rounded-xl hover:bg-white border border-transparent hover:border-slate-100 transition-all">
+                                                            <code className="text-slate-400 font-black tracking-tight">{code}</code>
+                                                            <span className={`truncate ml-4 font-bold text-right ${skuCodeToNameMap.has(code) ? 'text-slate-600' : 'text-rose-400 italic'}`}>
+                                                                {skuCodeToNameMap.get(code) || '(未找到匹配资产)'}
                                                             </span>
                                                         </li>
                                                     ))}

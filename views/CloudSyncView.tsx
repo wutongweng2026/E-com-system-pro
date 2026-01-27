@@ -311,11 +311,16 @@ ALTER TABLE fact_customer_service DISABLE ROW LEVEL SECURITY;
 NOTIFY pgrst, 'reload schema';`;
 
     return (
-        <div className="p-8 max-w-[1400px] mx-auto animate-fadeIn space-y-8 pb-20">
-            <div className="flex justify-between items-end">
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8 pb-20">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">物理云同步</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase italic">Infrastructure Connectivity & Persistence</p>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理链路云端同步就绪</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">物理云同步</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Cloud Data Sync & Infrastructure Connectivity Persistence</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest ${

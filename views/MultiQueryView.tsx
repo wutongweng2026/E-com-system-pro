@@ -49,13 +49,13 @@ const MetricSelectionModal = ({ isOpen, onClose, shangzhiMetrics, jingzhuntongMe
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 m-4 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 m-4 max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6 shrink-0">
                     <h3 className="text-lg font-bold text-slate-800">选择查询指标</h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                 </div>
-                <div className="grid grid-cols-2 gap-8 overflow-y-auto flex-1">
+                <div className="grid grid-cols-2 gap-8 overflow-y-auto flex-1 no-scrollbar">
                     <div>
                         <h4 className="font-bold text-slate-600 mb-4 border-b border-slate-200 pb-2">商智指标</h4>
                         <div className="space-y-2">
@@ -107,7 +107,7 @@ const TrendChart = ({ dailyData, chartMetrics, metricsMap }: { dailyData: any[],
     const svgRef = useRef<SVGSVGElement>(null);
 
     if (dailyData.length < 2 || chartMetrics.size === 0) {
-        return <div className="h-full flex items-center justify-center text-slate-400">请执行查询并勾选指标以显示趋势</div>;
+        return <div className="h-full flex items-center justify-center text-slate-400 font-bold py-10">请执行查询并勾选指标以显示趋势</div>;
     }
 
     const width = 800;
@@ -217,7 +217,6 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
         setIsLoading(true);
         setCurrentPage(1);
         setTimeout(() => {
-            const managedSkuCodes = skus.length > 0 ? new Set(skus.map(s => s.code)) : null;
             const parsedSkus = skuInput.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
             const skuCodeToInfoMap = new Map(skus.map((s: ProductSKU) => [s.code, s]));
             
@@ -391,15 +390,20 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
     return (
         <>
             <MetricSelectionModal isOpen={isMetricModalOpen} onClose={() => setIsMetricModalOpen(false)} shangzhiMetrics={shangzhiMetricsForModal} jingzhuntongMetrics={jingzhuntongMetricsForModal} selectedMetrics={selectedMetrics} onConfirm={(m: string[]) => { setSelectedMetrics(m); setIsMetricModalOpen(false); }} />
-            <div className="p-8 w-full max-w-[1920px] mx-auto animate-fadeIn">
-                <div className="mb-6 flex items-center justify-between">
-                   <div>
-                       <h1 className="text-3xl font-black text-slate-800 tracking-tight">多维数据查询</h1>
-                       <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Comprehensive Data Aggregator</p>
-                   </div>
+            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+                {/* Header - Standardized */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">多维聚合计算就绪</span>
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">多维数据查询</h1>
+                        <p className="text-slate-500 font-medium text-xs mt-1 italic">Comprehensive Data Aggregator & Dimensional Filter</p>
+                    </div>
                 </div>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                         <div className="space-y-1">
                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">选择时间段</label>
@@ -429,7 +433,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                         </div>
                     </div>
                     <div className="flex items-end gap-4">
-                        <textarea placeholder="输入SKU编码，以逗号或换行分隔..." value={skuInput} onChange={e => setSkuInput(e.target.value)} className="flex-1 h-24 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none" />
+                        <textarea placeholder="输入SKU编码，以逗号或换行分隔..." value={skuInput} onChange={e => setSkuInput(e.target.value)} className="flex-1 h-24 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none" />
                         <div className="flex gap-4 pb-1">
                             <button onClick={handleReset} className="px-8 py-3 rounded-lg border border-slate-200 text-slate-600 font-black text-xs hover:bg-slate-50 uppercase">重置</button>
                             <button onClick={handleQuery} disabled={isLoading} className="px-10 py-3 rounded-lg bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 flex items-center gap-2 transition-all active:scale-95 disabled:bg-slate-200 uppercase">
@@ -441,8 +445,8 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
 
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8">
                     <div className="flex justify-between items-center mb-8">
-                        <h3 className="font-black text-slate-800 flex items-center gap-2"><TrendingUp size={20} className="text-[#70AD47]"/> 核心业务看板</h3>
-                        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                        <h3 className="font-black text-slate-800 flex items-center gap-2 tracking-tight"><TrendingUp size={20} className="text-[#70AD47]"/> 核心业务看板</h3>
+                        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100 shadow-inner">
                             <button onClick={() => setComparisonType('period')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${comparisonType === 'period' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>环比前一周期</button>
                             <button onClick={() => setComparisonType('year')} className={`px-4 py-1.5 text-[10px] font-black uppercase rounded-lg transition-all ${comparisonType === 'year' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400'}`}>同比去年同期</button>
                         </div>
@@ -475,7 +479,7 @@ export const MultiQueryView = ({ shangzhiData, jingzhuntongData, skus, shops, sc
                     {visualisationData ? <div className="bg-slate-50/30 p-4 rounded-2xl border border-slate-100"><TrendChart dailyData={visualisationData.dailyData} chartMetrics={chartMetrics} metricsMap={allMetricsMap} /></div> : null}
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100">
+                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                     <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/30">
                         <div className="flex items-center gap-3"><BarChart3 size={20} className="text-[#70AD47]" /><span className="font-black text-slate-800 uppercase tracking-widest">查询结果明细集 (已聚合)</span></div>
                         <button onClick={() => {}} className="flex items-center gap-2 px-6 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 font-black text-[10px] hover:bg-slate-50 shadow-sm transition-all"><Download size={14} /> 导出 EXCEL 报表</button>

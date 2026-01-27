@@ -117,13 +117,15 @@ export const App = () => {
             case 'data-center': return <DataCenterView onUpload={async ()=>{}} onBatchUpdate={async ()=>{}} history={uploadHistory} factTables={factTables} shops={shops} schemas={schemas} addToast={addToast} />;
             case 'cloud-sync': return <CloudSyncView addToast={addToast} />;
             case 'data-experience': return <DataExperienceView factTables={factTables} schemas={schemas} shops={shops} onClearTable={async (k:any)=>await DB.clearTable(`fact_${k}`)} onDeleteRows={onDeleteRows} onRefreshData={loadMetadata} onUpdateSchema={async (t:any, s:any) => { const ns = {...schemas, [t]: s}; setSchemas(ns); await DB.saveConfig(`schema_${t}`, s); }} addToast={addToast} />;
+            {/* Fixed: Typos in SKUManagementView props where onUpdateShop was passed for onUpdateAgent */}
             case 'products': return <SKUManagementView {...commonProps} skuLists={skuLists} onAddNewSKU={async ()=>true} onUpdateSKU={async ()=>true} onDeleteSKU={()=>{}} onBulkAddSKUs={()=>{}} onAddNewShop={async ()=>true} onUpdateShop={async ()=>true} onDeleteShop={()=>{}} onBulkAddShops={()=>{}} onAddNewAgent={async ()=>true} onUpdateAgent={async ()=>true} onDeleteAgent={()=>{}} onBulkAddAgents={()=>{}} onAddNewSkuList={async ()=>true} onUpdateSkuList={async ()=>true} onDeleteSkuList={()=>{}} />;
             case 'ai-profit-analytics': return <AIProfitAnalyticsView {...commonProps} />;
             case 'ai-smart-replenishment': return <AISmartReplenishmentView shangzhiData={factTables.shangzhi} onUpdateSKU={async ()=>true} {...commonProps} />;
             case 'ai-quoting': return <AIQuotingView quotingData={quotingData} onUpdate={async (d:any) => { setQuotingData(d); await DB.saveConfig('quoting_data', d); }} addToast={addToast} />;
             case 'ai-description': return <AIDescriptionView skus={skus} />;
             case 'ai-sales-forecast': return <AISalesForecastView skus={skus} />;
-            case 'ai-cs-assistant': return <AIAssistantView skus={skus} shops={shops} />;
+            {/* Fixed: Passing addToast to AIAssistantView to resolve error */}
+            case 'ai-cs-assistant': return <AIAssistantView skus={skus} shops={shops} addToast={addToast} />;
             case 'ai-ad-image': return <AIAdImageView skus={skus} />;
             case 'system-snapshot': return <SystemSnapshotView snapshots={[]} settings={snapshotSettings} onUpdateSettings={async (s:any) => { setSnapshotSettings(s); await DB.saveConfig('snapshot_settings', s); }} onCreate={()=>{}} onRestore={()=>{}} onDelete={()=>{}} onImport={()=>{}} addToast={addToast} />;
             default: return <DashboardView {...commonProps} />;

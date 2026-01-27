@@ -54,17 +54,22 @@ export const AIAdImageView = ({ skus }: { skus: ProductSKU[] }) => {
     };
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-            <div className="mb-10 flex justify-between items-end">
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">AI 视觉创意舱</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Next-Gen Ad Visualizer</p>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">视觉创作引擎已点火</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 视觉创意舱</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Generative Ad Visuals & Creative Product Studio</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 {/* Controls */}
-                <div className="lg:col-span-1 space-y-8">
+                <div className="lg:col-span-4 space-y-8">
                     <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-6">
                         <div className="flex items-center gap-2 text-[#70AD47] font-black text-sm uppercase">
                             <Layers size={18} /> 创意参数
@@ -119,7 +124,7 @@ export const AIAdImageView = ({ skus }: { skus: ProductSKU[] }) => {
                 </div>
 
                 {/* Canvas */}
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-8">
                     <div className="bg-slate-100 rounded-[40px] border-4 border-white shadow-inner flex flex-col items-center justify-center min-h-[600px] relative overflow-hidden group">
                         {isLoading ? (
                             <div className="text-center">
@@ -147,7 +152,7 @@ export const AIAdImageView = ({ skus }: { skus: ProductSKU[] }) => {
                             <div className="text-center px-10">
                                 <ImageIcon size={80} className="mx-auto text-slate-300 mb-6 opacity-50" />
                                 <h3 className="text-slate-400 font-black text-xl mb-2">等待视觉灵感</h3>
-                                <p className="text-slate-400 text-xs font-bold max-w-sm mx-auto">配置左侧参数并点击生成按钮，云舟 AI 将为您创作高精细度的电商广告视觉图。</p>
+                                <p className="text-slate-400 text-xs font-bold max-w-sm mx-auto text-center leading-relaxed">配置左侧参数并点击生成按钮，云舟 AI 将为您创作高精细度的电商广告视觉图。</p>
                             </div>
                         )}
 

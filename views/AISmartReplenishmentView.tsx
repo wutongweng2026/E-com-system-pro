@@ -8,7 +8,6 @@ interface AIReplenishmentViewProps {
   skus: ProductSKU[];
   shangzhiData: any[];
   shops: Shop[];
-  // Fix: Changed return type to allow Promise<boolean> for async updates
   onUpdateSKU: (sku: ProductSKU) => Promise<boolean> | boolean;
   addToast: (type: 'success' | 'error', title: string, message: string) => void;
 }
@@ -36,7 +35,7 @@ const ReplenishmentModal = ({ sku, isOpen, onClose, onConfirm }: { sku: ProductS
     };
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 m-4" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-6">
                     <div>
@@ -137,7 +136,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                 case '厂直':
                     monitoredStock = sku.factoryStock || 0;
                     break;
-                default: // Fallback for undefined or other modes
+                default: 
                     monitoredStock = totalStock;
             }
 
@@ -160,7 +159,6 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
         });
     }, [replenishmentData, filters]);
 
-    // Fix: Made handler async and added await for onUpdateSKU call
     const handleReplenishConfirm = async (skuToUpdate: ProductSKU, quantities: { warehouse: number, factory: number }) => {
         const updatedSku = {
             ...skuToUpdate,
@@ -181,77 +179,86 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             sku={replenishingSku}
             onConfirm={handleReplenishConfirm}
         />
-        <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-            <div className="mb-8">
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">AI 智能补货</h1>
-            <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">INTELLIGENT REPLENISHMENT SUGGESTIONS</p>
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+            {/* Header - Standardized */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">动态库存预警已启用</span>
+                    </div>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 智能补货</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Intelligent Replenishment Suggestions & Demand Forecasting</p>
+                </div>
             </div>
             
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-8 flex gap-4">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 mb-8 flex flex-wrap gap-6 items-end">
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">按店铺筛选</label>
-                    <select value={filters.shopId} onChange={e => setFilters(f => ({...f, shopId: e.target.value}))} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[#70AD47]">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">按店铺筛选</label>
+                    <select value={filters.shopId} onChange={e => setFilters(f => ({...f, shopId: e.target.value}))} className="w-56 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] shadow-sm">
                         <option value="all">所有店铺</option>
                         {shops.map(shop => <option key={shop.id} value={shop.id}>{shop.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">按状态筛选</label>
-                    <select value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="w-48 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[#70AD47]">
-                        <option value="all">所有状态</option>
-                        <option value="severe">严重警告</option>
-                        <option value="warning">补货警告</option>
-                        <option value="normal">库存健康</option>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">按预警等级</label>
+                    <select value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="w-56 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-[#70AD47] shadow-sm">
+                        <option value="all">全部策略状态</option>
+                        <option value="severe" className="text-rose-600 font-bold">严重警告 (断货中)</option>
+                        <option value="warning" className="text-amber-600 font-bold">补货警告 (即将告急)</option>
+                        <option value="normal" className="text-green-600 font-bold">库存健康</option>
                     </select>
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 min-h-[500px]">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[500px]">
                 <table className="w-full text-sm">
                     <thead>
-                        <tr className="text-xs font-bold text-slate-400 border-b border-slate-100">
-                            <th className="text-left p-3">SKU / 店铺</th>
-                            <th className="text-center p-3" title="根据SKU模式，高亮的数值为当前监控的库存">当前库存 (仓/厂/总)</th>
-                            <th className="text-center p-3">近15日销量</th>
-                            <th className="text-center p-3">近7日销量</th>
-                            <th className="text-center p-3">状态</th>
-                            <th className="text-center p-3">操作</th>
+                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                            <th className="text-left pb-4 pl-4">SKU / 店铺名称</th>
+                            <th className="text-center pb-4" title="根据SKU模式，高亮的数值为当前监控的库存">当前库存 (仓/厂/总)</th>
+                            <th className="text-center pb-4">近15日物理销量</th>
+                            <th className="text-center pb-4">近7日物理销量</th>
+                            <th className="text-center pb-4">状态分析</th>
+                            <th className="text-center pb-4 pr-4">操作决策</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-slate-50">
                         {filteredData.length === 0 ? (
                              <tr>
                                 <td colSpan={6} className="py-20 text-center">
                                     <div className="flex flex-col items-center justify-center text-slate-300">
-                                        <PackagePlus size={48} className="mb-4 opacity-50" />
-                                        <p className="text-xs font-bold">暂无数据或无匹配项</p>
+                                        <PackagePlus size={48} className="mb-4 opacity-20" />
+                                        <p className="text-xs font-black uppercase tracking-widest">暂无补货建议数据</p>
                                     </div>
                                 </td>
                             </tr>
                         ) : (
                             filteredData.map(({ sku, totalStock, sales7d, sales15d, status }) => (
-                                <tr key={sku.id} className="hover:bg-slate-50">
-                                    <td className="p-3 border-b border-slate-50">
-                                        <p className="font-bold text-slate-800 truncate" title={sku.name}>{sku.name}</p>
-                                        <p className="text-xs text-slate-400">{sku.code} @ {shopMap.get(sku.shopId) || '未知店铺'}</p>
+                                <tr key={sku.id} className="hover:bg-slate-50/50 transition-colors group">
+                                    <td className="py-5 pl-4 border-b border-slate-50">
+                                        <p className="font-black text-slate-800 truncate max-w-[250px]" title={sku.name}>{sku.name}</p>
+                                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{sku.code} @ {shopMap.get(sku.shopId) || '未知店铺'}</p>
                                     </td>
-                                    <td className="p-3 border-b border-slate-50 text-center font-mono">
-                                        <span title="入仓" className={sku.mode === '入仓' ? 'font-black text-blue-600' : ''}>{sku.warehouseStock || 0}</span> / 
-                                        <span title="厂直" className={sku.mode === '厂直' ? 'font-black text-blue-600' : ''}>{sku.factoryStock || 0}</span> / 
-                                        <span title="总计" className={!sku.mode || (sku.mode !== '入仓' && sku.mode !== '厂直') ? 'font-black text-blue-600' : 'font-bold'}>{totalStock}</span>
+                                    <td className="py-5 border-b border-slate-50 text-center font-mono">
+                                        <span title="入仓" className={`px-1 ${sku.mode === '入仓' ? 'font-black text-brand underline decoration-brand/30 underline-offset-4' : 'text-slate-400'}`}>{sku.warehouseStock || 0}</span> / 
+                                        <span title="厂直" className={`px-1 ${sku.mode === '厂直' ? 'font-black text-brand underline decoration-brand/30 underline-offset-4' : 'text-slate-400'}`}>{sku.factoryStock || 0}</span> / 
+                                        <span title="总计" className="font-black text-slate-900 px-1">{totalStock}</span>
                                     </td>
-                                    <td className="p-3 border-b border-slate-50 text-center font-mono">{sales15d}</td>
-                                    <td className="p-3 border-b border-slate-50 text-center font-mono">{sales7d}</td>
-                                    <td className="p-3 border-b border-slate-50 text-center">
-                                        {status === 'severe' && <span className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full text-xs font-bold"><AlertTriangle size={12}/> 严重警告</span>}
-                                        {status === 'warning' && <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold"><AlertTriangle size={12}/> 补货警告</span>}
-                                        {status === 'normal' && <span className="text-green-500 text-xs font-bold">健康</span>}
+                                    <td className="py-5 border-b border-slate-50 text-center font-mono font-bold text-slate-600">{sales15d.toLocaleString()}</td>
+                                    <td className="py-5 border-b border-slate-50 text-center font-mono font-bold text-slate-800">{sales7d.toLocaleString()}</td>
+                                    <td className="py-5 border-b border-slate-50 text-center">
+                                        {status === 'severe' && <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase"><AlertTriangle size={12}/> 严重缺货</span>}
+                                        {status === 'warning' && <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase"><AlertTriangle size={12}/> 建议补货</span>}
+                                        {status === 'normal' && <span className="text-brand text-[10px] font-black uppercase bg-brand/5 px-2.5 py-1 rounded-lg">库存充足</span>}
                                     </td>
-                                    <td className="p-3 border-b border-slate-50 text-center">
-                                        {status !== 'normal' && (
-                                            <button onClick={() => setReplenishingSku(sku)} className="px-3 py-1 bg-[#70AD47] text-white rounded-md text-xs font-bold hover:bg-[#5da035] flex items-center gap-1 mx-auto">
-                                                补货 <ChevronsRight size={14} />
+                                    <td className="py-5 border-b border-slate-50 text-center pr-4">
+                                        {status !== 'normal' ? (
+                                            <button onClick={() => setReplenishingSku(sku)} className="px-4 py-1.5 bg-brand text-white rounded-xl text-[10px] font-black hover:bg-[#5da035] shadow-lg shadow-brand/20 transition-all flex items-center gap-1 mx-auto uppercase">
+                                                补货入库 <ChevronsRight size={14} />
                                             </button>
+                                        ) : (
+                                            <span className="text-slate-200 text-[10px] font-black uppercase italic">Healthy</span>
                                         )}
                                     </td>
                                 </tr>

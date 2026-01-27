@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive } from 'lucide-react';
+import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TableType, UploadHistory, Shop } from '../lib/types';
 import { getTableName, detectTableType } from '../lib/helpers';
@@ -187,21 +187,26 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
             </>
         )}
       </ConfirmModal>
-      <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn space-y-8">
-        <div className="flex justify-between items-end">
-          <div>
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">数据中心控制台</h1>
-            <p className="text-slate-400 mt-2 font-bold text-xs tracking-widest">物理层数据治理与同步中心</p>
-          </div>
-          <button 
-            onClick={() => setIsToolboxOpen(!isToolboxOpen)}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-sm ${isToolboxOpen ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-            <Wrench size={14} /> 治理工具箱
-          </button>
+      <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+        {/* Standardized Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+            <div>
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                    <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层链路已挂载</span>
+                </div>
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight">数据中心控制台</h1>
+                <p className="text-slate-500 font-medium text-xs mt-1 italic">Physical Data Governance Hub & ETL Pipeline</p>
+            </div>
+            <button 
+                onClick={() => setIsToolboxOpen(!isToolboxOpen)}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-sm ${isToolboxOpen ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                <Wrench size={14} /> 治理工具箱
+            </button>
         </div>
 
         {isToolboxOpen && (
-            <div className="bg-slate-800 rounded-3xl p-8 border border-slate-700 shadow-2xl animate-fadeIn">
+            <div className="bg-slate-800 rounded-[32px] p-8 border border-slate-700 shadow-2xl animate-fadeIn">
                  <div className="flex items-center gap-2 mb-6">
                     <Wrench size={20} className="text-[#70AD47]" />
                     <h3 className="font-black text-white text-lg">物理层字段批量修正</h3>
@@ -212,7 +217,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                         placeholder="输入需要修正的 SKU 编码（每行一个或逗号分隔）..."
                         value={batchSkuInput}
                         onChange={e => setBatchSkuInput(e.target.value)}
-                        className="lg:col-span-1 h-32 bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-300 outline-none focus:border-[#70AD47] resize-none font-mono"
+                        className="lg:col-span-1 h-32 bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-slate-300 outline-none focus:border-[#70AD47] resize-none font-mono no-scrollbar"
                     />
                     <div className="flex flex-col gap-4">
                         <select 
@@ -226,7 +231,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                         <button 
                             onClick={handleBatchFix}
                             disabled={isBatchUpdating}
-                            className="w-full py-4 rounded-xl bg-[#70AD47] text-white font-black text-sm hover:bg-[#5da035] shadow-lg transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed">
+                            className="w-full py-4 rounded-xl bg-[#70AD47] text-white font-black text-sm hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest">
                             {isBatchUpdating ? '正在重写数据库...' : '立即执行批量修正'}
                         </button>
                     </div>
@@ -243,68 +248,69 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl p-6 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-3xl p-8 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
             <div className="flex justify-between items-start">
-              <p className="text-xs font-bold text-slate-400 mb-2">商智数据总行数</p>
-              <Database size={24} className="text-slate-200" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">商智数据总行数</p>
+              <Database size={24} className="text-slate-100 group-hover:text-brand transition-colors" />
             </div>
             <div>
-              <p className="text-4xl font-black text-slate-800">{shangzhiCount.toLocaleString()}</p>
-              <p className="text-xs text-slate-400 mt-1 font-medium">最新数据: {shangzhiLatestDate}</p>
+              <p className="text-4xl font-black text-slate-900 tabular-nums">{shangzhiCount.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-2 font-black uppercase">最新事实: {shangzhiLatestDate}</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-3xl p-8 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
             <div className="flex justify-between items-start">
-              <p className="text-xs font-bold text-slate-400 mb-2">广告数据总行数</p>
-              <BarChart3 size={24} className="text-[#70AD47]" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">广告数据总行数</p>
+              <BarChart3 size={24} className="text-slate-100 group-hover:text-brand transition-colors" />
             </div>
             <div>
-              <p className="text-4xl font-black text-slate-800">{jingzhuntongCount.toLocaleString()}</p>
-              <p className="text-xs text-slate-400 mt-1 font-medium">最新数据: {jingzhuntongLatestDate}</p>
+              <p className="text-4xl font-black text-slate-900 tabular-nums">{jingzhuntongCount.toLocaleString()}</p>
+              <p className="text-[10px] text-slate-400 mt-2 font-black uppercase">最新事实: {jingzhuntongLatestDate}</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl p-6 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+          <div className="bg-white rounded-3xl p-8 flex flex-col justify-between border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
             <div className="flex justify-between items-start">
-              <p className="text-xs font-bold text-slate-400 mb-2">物理层占用</p>
-                <HardDrive size={24} className="text-blue-500" />
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">本地库物理占用</p>
+                <HardDrive size={24} className="text-slate-100 group-hover:text-brand transition-colors" />
             </div>
             <div>
-              <p className="text-4xl font-black text-slate-800">{sizeMB} MB</p>
-              <p className="text-xs text-slate-400 mt-1 font-medium invisible">Placeholder</p>
+              <p className="text-4xl font-black text-slate-900 tabular-nums">{sizeMB} MB</p>
+              <p className="text-[10px] text-slate-400 mt-2 font-black uppercase invisible">Placeholder</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-10 border border-slate-100 shadow-sm">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+        <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-sm overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-12 relative z-10">
               {/* Part 1: Template Download */}
               <div className="lg:col-span-1 space-y-6">
-                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
+                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg tracking-tight">
                       <div className="w-1.5 h-6 bg-[#70AD47] rounded-full"></div>
-                      1. 模版下载
+                      1. 维度模版
                   </h3>
-                  <p className="text-xs text-slate-400 font-bold leading-relaxed">同步数据前，请确保您的表格列头与下载的模版匹配。</p>
+                  <p className="text-xs text-slate-400 font-bold leading-relaxed">同步数据前，请确保您的表格列头与下载的模版字段逻辑对齐。</p>
                   <div className="space-y-2">
-                      <button onClick={() => handleDownloadTemplate('shangzhi', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
-                          <FileSpreadsheet size={18} className="text-[#70AD47]" />
-                          <span className="font-bold text-slate-700 text-xs">商智模版</span>
+                      <button onClick={() => handleDownloadTemplate('shangzhi', true)} className="w-full group flex items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-[#70AD47] hover:shadow-md transition-all">
+                          <FileSpreadsheet size={18} className="text-slate-300 group-hover:text-brand transition-colors" />
+                          <span className="font-black text-slate-700 text-xs">商智模版</span>
                       </button>
-                      <button onClick={() => handleDownloadTemplate('jingzhuntong', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-blue-500 hover:shadow-md transition-all">
-                          <BarChart3 size={18} className="text-blue-500" />
-                          <span className="font-bold text-slate-700 text-xs">广告模版</span>
+                      <button onClick={() => handleDownloadTemplate('jingzhuntong', true)} className="w-full group flex items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-brand hover:shadow-md transition-all">
+                          <BarChart3 size={18} className="text-slate-300 group-hover:text-brand transition-colors" />
+                          <span className="font-black text-slate-700 text-xs">广告模版</span>
                       </button>
-                      <button onClick={() => handleDownloadTemplate('customer_service', true)} className="w-full group flex items-center gap-3 p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
-                          <Headset size={18} className="text-orange-500" />
-                          <span className="font-bold text-slate-700 text-xs">客服模版</span>
+                      <button onClick={() => handleDownloadTemplate('customer_service', true)} className="w-full group flex items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-brand hover:shadow-md transition-all">
+                          <Headset size={18} className="text-slate-300 group-hover:text-brand transition-colors" />
+                          <span className="font-black text-slate-700 text-xs">客服模版</span>
                       </button>
                   </div>
               </div>
 
               {/* Part 2: Upload/Sync Engine */}
-              <div className="lg:col-span-2 space-y-6 border-x border-slate-50 px-0 lg:px-8">
-                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
-                      <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
-                      2. 执行同步
+              <div className="lg:col-span-2 space-y-6 border-x border-slate-50 px-0 lg:px-10">
+                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg tracking-tight">
+                      <div className="w-1.5 h-6 bg-brand rounded-full"></div>
+                      2. 执行物理同步
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="relative">
@@ -332,13 +338,13 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                       </div>
                   </div>
                   
-                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 hover:border-[#70AD47] transition-all rounded-3xl p-8 flex flex-col items-center justify-center relative group">
-                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-[#70AD47] mb-4 group-hover:scale-110 transition-transform">
-                            <UploadCloud size={24} />
+                  <div className="bg-slate-50 border-2 border-dashed border-slate-200 hover:border-[#70AD47] transition-all rounded-[32px] p-10 flex flex-col items-center justify-center relative group">
+                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-md text-[#70AD47] mb-4 group-hover:scale-110 transition-transform">
+                            <UploadCloud size={28} />
                         </div>
-                        <div className="text-center mb-6">
-                            <h4 className="font-black text-slate-700 text-sm">{selectedFile ? selectedFile.name : '点击或拖拽上传数据表'}</h4>
-                            <p className="text-[10px] text-slate-400 font-bold mt-1 tracking-widest italic">支持覆盖更新模式 (UPSERT)</p>
+                        <div className="text-center mb-8">
+                            <h4 className="font-black text-slate-900 text-sm">{selectedFile ? selectedFile.name : '点击或拖拽上传数据表'}</h4>
+                            <p className="text-[10px] text-slate-400 font-black mt-2 tracking-[0.2em] uppercase italic opacity-60">Upsert Engine: Enabled</p>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="relative">
@@ -348,14 +354,14 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                                       accept=".xlsx, .xls" 
                                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                   />
-                                  <button className="bg-white border border-slate-200 text-slate-600 font-black text-[10px] px-6 py-2.5 rounded-lg hover:border-[#70AD47] transition-all shadow-sm uppercase tracking-wider">
+                                  <button className="bg-white border-2 border-slate-100 text-slate-600 font-black text-[10px] px-8 py-3 rounded-xl hover:border-brand transition-all shadow-sm uppercase tracking-widest">
                                       {selectedFile ? '更换文件' : '浏览文件'}
                                   </button>
                             </div>
                             <button 
                                   onClick={handleProcessClick}
                                   disabled={!selectedFile || isProcessing}
-                                  className="bg-[#70AD47] text-white font-black text-[10px] px-8 py-2.5 rounded-lg shadow-lg shadow-[#70AD47]/20 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed active:scale-95 uppercase tracking-wider">
+                                  className="bg-brand text-white font-black text-[10px] px-10 py-3 rounded-xl shadow-xl shadow-brand/20 transition-all disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed active:scale-95 uppercase tracking-widest">
                                   {isProcessing ? '正在同步...' : '执行同步'}
                             </button>
                         </div>
@@ -364,30 +370,30 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
 
               {/* Part 3: Physical Data Archive (Full Export) */}
               <div className="lg:col-span-1 space-y-6">
-                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg">
-                      <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
-                      3. 数据全量导出
+                  <h3 className="flex items-center gap-2 font-black text-slate-800 text-lg tracking-tight">
+                      <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
+                      3. 物理归档
                   </h3>
-                  <p className="text-xs text-slate-400 font-bold leading-relaxed">导出物理库中的原始记录备份，用于异地迁移或手工审计。</p>
+                  <p className="text-xs text-slate-400 font-bold leading-relaxed">导出物理库中的原始记录备份，用于离线存储或异地迁移。</p>
                   <div className="space-y-2">
-                      <button onClick={() => handleDownloadTemplate('shangzhi', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                      <button onClick={() => handleDownloadTemplate('shangzhi', false)} className="w-full group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-800 hover:shadow-md transition-all">
                           <div className="flex items-center gap-3">
-                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
-                              <span className="font-bold text-slate-700 text-xs">导出全量商智</span>
+                              <Archive size={18} className="text-slate-300 group-hover:text-slate-800 transition-colors" />
+                              <span className="font-black text-slate-700 text-xs">导出全量商智</span>
                           </div>
                           <Download size={14} className="text-slate-300" />
                       </button>
-                      <button onClick={() => handleDownloadTemplate('jingzhuntong', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                      <button onClick={() => handleDownloadTemplate('jingzhuntong', false)} className="w-full group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-800 hover:shadow-md transition-all">
                           <div className="flex items-center gap-3">
-                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
-                              <span className="font-bold text-slate-700 text-xs">导出全量广告</span>
+                              <Archive size={18} className="text-slate-300 group-hover:text-slate-800 transition-colors" />
+                              <span className="font-black text-slate-700 text-xs">导出全量广告</span>
                           </div>
                           <Download size={14} className="text-slate-300" />
                       </button>
-                      <button onClick={() => handleDownloadTemplate('customer_service', false)} className="w-full group flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:border-orange-500 hover:shadow-md transition-all">
+                      <button onClick={() => handleDownloadTemplate('customer_service', false)} className="w-full group flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-800 hover:shadow-md transition-all">
                           <div className="flex items-center gap-3">
-                              <Archive size={18} className="text-slate-400 group-hover:text-orange-500" />
-                              <span className="font-bold text-slate-700 text-xs">导出全量客服</span>
+                              <Archive size={18} className="text-slate-300 group-hover:text-slate-800 transition-colors" />
+                              <span className="font-black text-slate-700 text-xs">导出全量客服</span>
                           </div>
                           <Download size={14} className="text-slate-300" />
                       </button>
@@ -397,38 +403,38 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
         </div>
 
         <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm min-h-[300px]">
-            <h3 className="flex items-center gap-2 font-bold text-slate-800 mb-6">
+            <h3 className="flex items-center gap-2 font-black text-slate-800 mb-8 tracking-tight">
                 <RotateCcw size={18} className="text-[#70AD47]" />
-                近期物理同步历史
+                物理层同步历史
             </h3>
             
-            <div className="w-full">
-                <div className="grid grid-cols-6 gap-4 pb-4 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center uppercase tracking-widest">
-                    <div className="text-left pl-4">文件名</div>
-                    <div>大小</div>
+            <div className="w-full overflow-x-auto no-scrollbar">
+                <div className="grid grid-cols-6 gap-4 pb-4 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center uppercase tracking-[0.15em] min-w-[800px]">
+                    <div className="text-left pl-4">文件名 / 源文件</div>
+                    <div>存储规格</div>
                     <div>有效行数</div>
-                    <div>物理库表</div>
-                    <div>完成时间</div>
-                    <div>同步状态</div>
+                    <div>目标物理表</div>
+                    <div>同步时间</div>
+                    <div>引擎状态</div>
                 </div>
                 
                 {history.length === 0 ? (
                     <div className="py-20 text-center">
-                        <p className="text-slate-300 font-bold text-lg italic">暂无同步记录</p>
+                        <p className="text-slate-300 font-black text-sm uppercase tracking-widest italic">Awaiting First Sync Job...</p>
                     </div>
                 ) : (
                     history.map((h: UploadHistory) => (
-                        <div key={h.id} className="grid grid-cols-6 gap-4 py-4 border-b border-slate-50 text-xs text-slate-600 items-center text-center hover:bg-slate-50 transition-colors">
-                              <div className="text-left pl-4 font-bold text-slate-700 truncate">{h.fileName}</div>
-                              <div>{h.fileSize}</div>
-                              <div>{h.rowCount}</div>
+                        <div key={h.id} className="grid grid-cols-6 gap-4 py-5 border-b border-slate-50 text-xs text-slate-600 items-center text-center hover:bg-slate-50/50 transition-colors min-w-[800px]">
+                              <div className="text-left pl-4 font-black text-slate-800 truncate">{h.fileName}</div>
+                              <div className="font-mono text-[11px] text-slate-400">{h.fileSize}</div>
+                              <div className="font-black text-slate-700">{h.rowCount.toLocaleString()}</div>
                               <div>
-                                  <span className="uppercase font-black text-slate-400 text-[10px]">{getTableName(h.targetTable)}</span>
+                                  <span className="uppercase font-black text-brand text-[10px] bg-brand/5 px-2 py-0.5 rounded-md">{getTableName(h.targetTable)}</span>
                               </div>
-                              <div>{h.uploadTime.split(' ')[0]}</div>
+                              <div className="font-bold text-slate-400">{h.uploadTime.split(' ')[0]}</div>
                               <div>
-                                  <span className={`flex items-center justify-center gap-1 font-bold ${h.status === '成功' ? 'text-green-600' : 'text-red-500'}`}>
-                                      {h.status === '成功' && <Check size={12}/>} {h.status}
+                                  <span className={`flex items-center justify-center gap-1.5 font-black uppercase text-[10px] ${h.status === '成功' ? 'text-green-600' : 'text-rose-500'}`}>
+                                      {h.status === '成功' ? <Check size={12} strokeWidth={4} /> : <X size={12} strokeWidth={4} />} {h.status}
                                   </span>
                               </div>
                         </div>
