@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown, LoaderCircle, CheckCircle2, AlertCircle, Store, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown, LoaderCircle, CheckCircle2, AlertCircle, Store, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { ProductSubView, Shop, ProductSKU, CustomerServiceAgent, SKUMode, SKUStatus, SKUAdvertisingStatus, SkuList } from '../lib/types';
 import { parseExcelFile } from '../lib/excel';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -499,6 +499,11 @@ export const SKUManagementView = ({
     const [selectedMode, setSelectedMode] = useState('all');
     const [selectedModel, setSelectedModel] = useState('all');
     
+    // SKU 精准搜索输入框文本
+    const [skuSearchText, setSkuSearchText] = useState('');
+    // 实际应用的搜索关键词（点击检索按钮后更新）
+    const [appliedSkuSearch, setAppliedSkuSearch] = useState<string[]>([]);
+
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const ROWS_PER_PAGE = 50;
@@ -522,6 +527,7 @@ export const SKUManagementView = ({
 
     const filteredSkus = useMemo(() => {
         return skus.filter((sku: ProductSKU) => {
+            // 下拉框匹配逻辑
             const brandMatch = selectedBrand === 'all' || sku.brand === selectedBrand;
             const categoryMatch = selectedCategory === 'all' || sku.category === selectedCategory;
             const shopMatch = selectedShop === 'all' || sku.shopId === selectedShop;
@@ -529,9 +535,20 @@ export const SKUManagementView = ({
             const adMatch = selectedAdStatus === 'all' || sku.advertisingStatus === selectedAdStatus;
             const modeMatch = selectedMode === 'all' || sku.mode === selectedMode;
             const modelMatch = selectedModel === 'all' || sku.model === selectedModel;
-            return brandMatch && categoryMatch && shopMatch && statusMatch && adMatch && modeMatch && modelMatch;
+
+            // SKU 精准匹配逻辑 (如果 appliedSkuSearch 有内容，则必须匹配其中之一)
+            let skuTextMatch = true;
+            if (appliedSkuSearch.length > 0) {
+                skuTextMatch = appliedSkuSearch.some(term => 
+                    sku.code.includes(term) || 
+                    sku.name.includes(term) || 
+                    (sku.model && sku.model.includes(term))
+                );
+            }
+
+            return brandMatch && categoryMatch && shopMatch && statusMatch && adMatch && modeMatch && modelMatch && skuTextMatch;
         });
-    }, [skus, selectedBrand, selectedCategory, selectedShop, selectedStatus, selectedAdStatus, selectedMode, selectedModel]);
+    }, [skus, selectedBrand, selectedCategory, selectedShop, selectedStatus, selectedAdStatus, selectedMode, selectedModel, appliedSkuSearch]);
 
     const sortedAndFilteredSkus = useMemo(() => {
         const statusOrder: { [key in SKUStatus]: number } = {
@@ -557,7 +574,24 @@ export const SKUManagementView = ({
     // Reset page when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedBrand, selectedCategory, selectedShop, selectedStatus, selectedAdStatus, selectedMode, selectedModel]);
+    }, [selectedBrand, selectedCategory, selectedShop, selectedStatus, selectedAdStatus, selectedMode, selectedModel, appliedSkuSearch]);
+
+    const handleSearchClick = () => {
+        const terms = skuSearchText.split(/[\n,，\s]+/).map(s => s.trim()).filter(Boolean);
+        setAppliedSkuSearch(terms);
+    };
+
+    const handleResetFilters = () => {
+        setSelectedBrand('all'); 
+        setSelectedCategory('all'); 
+        setSelectedShop('all');
+        setSelectedStatus('all'); 
+        setSelectedAdStatus('all'); 
+        setSelectedMode('all');
+        setSelectedModel('all');
+        setSkuSearchText('');
+        setAppliedSkuSearch([]);
+    };
 
     const handleDeleteClick = (item: any, type: 'sku' | 'shop' | 'agent' | 'list') => {
         setDeleteTarget({ id: item.id, name: item.name, type });
@@ -893,16 +927,33 @@ export const SKUManagementView = ({
                              <div className="pt-4 border-t border-slate-50">
                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">SKU 精准检索</label>
                                  <div className="flex gap-4">
-                                     <input placeholder="最多可输入100个SKU，以逗号或换行分隔" className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]" />
+                                     <div className="flex-1 relative">
+                                        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                        <input 
+                                            placeholder="最多可输入100个SKU，以逗号或换行分隔" 
+                                            value={skuSearchText}
+                                            onChange={e => setSkuSearchText(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleSearchClick()}
+                                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47]" 
+                                        />
+                                     </div>
                                      <div className="flex gap-2 shrink-0">
-                                          <button onClick={() => {
-                                              setSelectedBrand('all'); setSelectedCategory('all'); setSelectedShop('all');
-                                              setSelectedStatus('all'); setSelectedAdStatus('all'); setSelectedMode('all');
-                                              setSelectedModel('all');
-                                          }} className="px-6 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition-colors uppercase">重置</button>
-                                          <button className="px-8 rounded-xl bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all uppercase">检索</button>
+                                          <button onClick={handleResetFilters} className="px-6 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition-colors uppercase">重置</button>
+                                          <button onClick={handleSearchClick} className="px-8 rounded-xl bg-[#70AD47] text-white font-black text-xs hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all uppercase flex items-center gap-2">
+                                              检索
+                                          </button>
                                      </div>
                                  </div>
+                                 {appliedSkuSearch.length > 0 && (
+                                     <div className="mt-3 flex flex-wrap gap-2 animate-fadeIn">
+                                         {appliedSkuSearch.map(term => (
+                                             <span key={term} className="bg-slate-100 text-slate-600 text-[10px] font-black px-2 py-1 rounded-lg flex items-center gap-1.5 border border-slate-200">
+                                                 {term}
+                                                 <button onClick={() => setAppliedSkuSearch(prev => prev.filter(t => t !== term))} className="text-slate-400 hover:text-rose-500"><X size={10}/></button>
+                                             </span>
+                                         ))}
+                                     </div>
+                                 )}
                             </div>
                         </div>
 
