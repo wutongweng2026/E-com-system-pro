@@ -29,6 +29,31 @@ interface Diagnosis {
 
 const formatVal = (v: number, isFloat = false) => isFloat ? v.toFixed(2) : Math.round(v).toLocaleString();
 
+// Fix: Added optional key to DiagnosisCard props to resolve TS error in list rendering
+// and removed redundant internal key from the div.
+const DiagnosisCard = ({ d }: { d: Diagnosis; key?: React.Key }) => (
+    <div className={`p-8 rounded-[32px] border ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'} hover:shadow-xl transition-all group/card cursor-default shrink-0`}>
+        <div className="flex items-center gap-4 mb-4">
+            {d.type === 'new_sku' ? <PackageSearch className="text-cyan-500" size={24}/> :
+             d.type === 'asset' ? <SearchCode className="text-amber-500" size={24}/> :
+             d.type === 'data_integrity' ? <CalendarX className="text-rose-500" size={24}/> :
+             d.severity === 'critical' ? <ShieldAlert className="text-rose-500" size={24}/> : 
+             d.severity === 'success' ? <Flame className="text-brand" size={24}/> : 
+             <Star className="text-amber-500" size={24}/>}
+            <h4 className={`text-lg font-black uppercase tracking-tight ${d.severity === 'critical' ? 'text-rose-600' : 'text-slate-800'}`}>{d.title}</h4>
+        </div>
+        <p className="text-xs font-bold text-slate-500 leading-relaxed mb-6">{d.desc}</p>
+        <div className="bg-white/60 rounded-2xl p-5 border border-white/20 space-y-2">
+            {Object.entries(d.details).map(([k,v]) => (
+                <div key={k} className="flex justify-between text-[10px] font-black uppercase">
+                    <span className="text-slate-400 tracking-widest">{k}</span>
+                    <span className="text-slate-900">{v}</span>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
 export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], shops: Shop[], addToast: any }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [activeMetric, setActiveMetric] = useState<MetricKey>('gmv');
@@ -47,6 +72,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
     const [allTrends, setAllTrends] = useState<Record<MetricKey, DailyRecord[]>>({ gmv: [], ca: [], spend: [], roi: [] });
     const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
+    const [isAllDiagnosesModalOpen, setIsAllDiagnosesModalOpen] = useState(false);
 
     const enabledSkusMap = useMemo(() => {
         const map = new Map<string, ProductSKU>();
@@ -54,9 +80,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
         return map;
     }, [skus]);
 
-    // 全量 SKU Map 用于检测未录入资产
     const allSkusCodes = useMemo(() => new Set(skus.map(s => s.code)), [skus]);
-
     const shopIdToMode = useMemo(() => new Map(shops.map(s => [s.id, s.mode])), [shops]);
 
     useEffect(() => {
@@ -70,7 +94,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
             const prevStart = new Date(new Date(prevEnd).getTime() - (diff - 1) * 86400000).toISOString().split('T')[0];
 
             try {
-                // 特殊：为了探测数据缺失，始终拉取最近 30 天的数据进行审计
                 const auditStart = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
                 const auditEnd = new Date().toISOString().split('T')[0];
 
@@ -83,7 +106,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     DB.getRange('fact_jingzhuntong', auditStart, auditEnd)
                 ]);
 
-                // 统计当前与上期参与计算的 SKU 集合
                 const currSkusInSales = new Set<string>();
                 const prevSkusInSales = new Set<string>();
                 const unmappedSkus = new Set<string>();
@@ -125,7 +147,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 const curr = getStats(currSz, currJzt, true);
                 const prev = getStats(prevSz, prevJzt, false);
                 
-                // 计算趋势流
                 const dailyAgg: Record<string, DailyRecord> = {};
                 for(let i=0; i<diff; i++) {
                     const ds = new Date(new Date(start).getTime() + i * 86400000).toISOString().split('T')[0];
@@ -157,10 +178,8 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 });
                 setAllTrends({ ...allTrends, gmv: Object.values(dailyAgg) });
 
-                // 核心诊断逻辑演算法
                 const newDiag: Diagnosis[] = [];
                 
-                // 1. 数据完整性探测 (最近 30 天)
                 const szDates = new Set(auditSz.map(r => r.date));
                 const jztDates = new Set(auditJzt.map(r => r.date));
                 const missingSz: string[] = [];
@@ -187,7 +206,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     });
                 }
                 
-                // 2. 新动销 SKU 探测
                 const newSkus = Array.from(currSkusInSales).filter(code => !prevSkusInSales.has(code) && enabledSkusMap.has(code));
                 if (newSkus.length > 0) {
                     newDiag.push({
@@ -203,7 +221,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     });
                 }
 
-                // 3. 未映射资产预警
                 if (unmappedSkus.size > 0) {
                     newDiag.push({
                         id: 'unmapped',
@@ -293,7 +310,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     </div>
                 </div>
 
-                {/* AI Insight Room */}
+                {/* AI Insight Room - Max 1 visible diagnosis with scrolling and modal */}
                 <div className="xl:col-span-4 bg-white rounded-[48px] p-12 shadow-xl border border-slate-100 flex flex-col relative overflow-hidden group/diag">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-brand/5 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
                     <div className="flex items-center gap-5 mb-10 relative z-10">
@@ -306,41 +323,50 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                         </div>
                     </div>
 
-                    <div className="flex-1 space-y-6 relative z-10 overflow-y-auto no-scrollbar pr-2 mb-10">
+                    {/* Height limited to h-[280px] to strictly show about 1 card at a time */}
+                    <div className="h-[280px] space-y-6 relative z-10 overflow-y-auto no-scrollbar pr-2 mb-10 scroll-smooth">
                         {diagnoses.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center bg-slate-50/50 rounded-[40px] border border-dashed border-slate-200 p-10 text-center opacity-40">
                                 <DatabaseZap size={48} className="text-slate-300 mb-6" />
                                 <p className="text-sm font-black text-slate-400 uppercase tracking-widest">物理链路平稳，系统暂无风险</p>
                             </div>
-                        ) : diagnoses.map(d => (
-                            <div key={d.id} className={`p-8 rounded-[32px] border ${d.severity === 'critical' ? 'bg-rose-50/50 border-rose-100' : 'bg-slate-50 border-slate-100'} hover:shadow-xl transition-all group/card cursor-default`}>
-                                <div className="flex items-center gap-4 mb-4">
-                                    {d.type === 'new_sku' ? <PackageSearch className="text-cyan-500" size={24}/> :
-                                     d.type === 'asset' ? <SearchCode className="text-amber-500" size={24}/> :
-                                     d.type === 'data_integrity' ? <CalendarX className="text-rose-500" size={24}/> :
-                                     d.severity === 'critical' ? <ShieldAlert className="text-rose-500" size={24}/> : 
-                                     d.severity === 'success' ? <Flame className="text-brand" size={24}/> : 
-                                     <Star className="text-amber-500" size={24}/>}
-                                    <h4 className={`text-lg font-black uppercase tracking-tight ${d.severity === 'critical' ? 'text-rose-600' : 'text-slate-800'}`}>{d.title}</h4>
-                                </div>
-                                <p className="text-xs font-bold text-slate-500 leading-relaxed mb-6">{d.desc}</p>
-                                <div className="bg-white/60 rounded-2xl p-5 border border-white/20 space-y-2">
-                                    {Object.entries(d.details).map(([k,v]) => (
-                                        <div key={k} className="flex justify-between text-[10px] font-black uppercase">
-                                            <span className="text-slate-400 tracking-widest">{k}</span>
-                                            <span className="text-slate-900">{v}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
+                        ) : diagnoses.map(d => <DiagnosisCard key={d.id} d={d} />)}
                     </div>
 
-                    <button className="w-full relative z-10 py-6 bg-slate-900 text-white rounded-[28px] font-black text-sm hover:bg-black transition-all flex items-center justify-center gap-4 shadow-2xl shadow-slate-200 active:scale-95 uppercase tracking-[0.2em]">
-                        穿透多源明细报告 <ChevronRight size={18} />
+                    <button 
+                        onClick={() => setIsAllDiagnosesModalOpen(true)}
+                        className="w-full relative z-10 py-6 bg-slate-900 text-white rounded-[28px] font-black text-sm hover:bg-black transition-all flex items-center justify-center gap-4 shadow-2xl shadow-slate-200 active:scale-95 uppercase tracking-[0.2em] mt-auto"
+                    >
+                        查看全部预警 <ChevronRight size={18} />
                     </button>
                 </div>
             </div>
+
+            {/* All Diagnoses Modal */}
+            {isAllDiagnosesModalOpen && (
+                <div className="fixed inset-0 bg-navy/60 backdrop-blur-md z-[100] flex items-center justify-center p-6 animate-fadeIn">
+                    <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-2xl p-10 m-4 max-h-[85vh] flex flex-col border border-slate-200 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                        <div className="flex justify-between items-center mb-8 shrink-0 relative z-10">
+                            <div>
+                                <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                                    <BotIcon className="text-brand" size={24} /> 全量战略预警矩阵
+                                </h3>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Full Neural Diagnostic Audit</p>
+                            </div>
+                            <button onClick={() => setIsAllDiagnosesModalOpen(false)} className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all shadow-sm"><X size={24} /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto no-scrollbar space-y-6 relative z-10 pr-2 pb-6">
+                            {diagnoses.length === 0 ? (
+                                <div className="py-20 text-center opacity-30 italic font-black uppercase tracking-widest text-slate-300">No active warnings detected</div>
+                            ) : diagnoses.map(d => <DiagnosisCard key={d.id} d={d} />)}
+                        </div>
+                        <div className="pt-6 border-t border-slate-50 shrink-0 relative z-10">
+                            <button onClick={() => setIsAllDiagnosesModalOpen(false)} className="w-full py-4 rounded-2xl bg-slate-100 text-slate-500 font-black text-xs hover:bg-slate-200 transition-all uppercase tracking-widest">退出审计视图</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -368,7 +394,6 @@ const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBet
                     <p className="text-5xl font-black text-slate-900 tabular-nums tracking-tighter">{prefix}{formatVal(value.total.current, isFloat)}</p>
                 </div>
             </div>
-            {/* Sub-Metrics: Equally distributed width */}
             <div className={`px-0 py-5 border-t flex items-center ${isActive ? 'bg-brand/5 border-brand/10' : 'bg-slate-50 border-slate-50'}`}>
                  <div className="flex flex-1 items-center px-8 border-r border-slate-200">
                     <div className="flex flex-col">
@@ -412,20 +437,16 @@ const MainTrendVisual = ({ data }: { data: DailyRecord[] }) => {
                     <linearGradient id="popGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/></linearGradient>
                 </defs>
                 
-                {/* Grids */}
                 {[0, 0.25, 0.5, 0.75, 1].map(p => (
                     <line key={p} x1={padding.left} y1={getY(maxVal * p / 1.2)} x2={width-padding.right} y2={getY(maxVal * p / 1.2)} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="5 5" />
                 ))}
 
-                {/* Area Paths */}
                 <path d={generateAreaPath(data.map(d => d.self))} fill="url(#selfGrad)" className="transition-all duration-700" />
                 <path d={generateAreaPath(data.map(d => d.pop))} fill="url(#popGrad)" className="transition-all duration-700" />
 
-                {/* Stroke Paths - Reduced stroke width to 1.2px (High Precision Style) */}
                 <path d={generatePath(data.map(d => d.self))} fill="none" stroke="#70AD47" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-xl transition-all duration-700" />
                 <path d={generatePath(data.map(d => d.pop))} fill="none" stroke="#3B82F6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-xl transition-all duration-700" />
 
-                {/* X Axis labels */}
                 <text x={padding.left} y={height-10} textAnchor="start" fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase">{data[0].date}</text>
                 <text x={width-padding.right} y={height-10} textAnchor="end" fontSize="10" fill="#94a3b8" fontWeight="900" className="uppercase">{data[data.length-1].date}</text>
             </svg>
