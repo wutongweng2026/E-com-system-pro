@@ -35,10 +35,11 @@ export async function callQwen(prompt: string, isJson: boolean = false) {
 }
 
 /**
- * Google Gemini - 图像生成 (gemini-2.5-flash-image)
+ * 图像生成调度引擎
  * @param prompt 创意描述词
+ * @param config 图像配置参数
  */
-export async function generateWanxImage(prompt: string) {
+export async function generateWanxImage(prompt: string, config?: { aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9" }) {
     // Generate images using gemini-2.5-flash-image by default
     const response = await ai.models.generateContent({
         model: AI_CONFIG.imageModel,
@@ -49,6 +50,11 @@ export async function generateWanxImage(prompt: string) {
                 },
             ],
         },
+        config: {
+            imageConfig: {
+                aspectRatio: config?.aspectRatio || "1:1"
+            }
+        }
     });
 
     // The output response may contain both image and text parts; iterate through all parts to find the image part.

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { Eye, Settings, Database, RotateCcw, Plus, FileText, Download, Trash2, Edit2, X, Search, Filter, Zap, AlertCircle, Calendar, Store, CheckSquare, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, LoaderCircle, Sparkles, Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
@@ -406,20 +405,20 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                             </div>
                         </div>
 
-                        {/* High-Density Data Matrix */}
+                        {/* High-Density Data Matrix - Optimized with Scroll */}
                         <div className="flex-1 min-h-0 flex flex-col bg-white rounded-[40px] border border-slate-100 shadow-inner relative overflow-hidden group/table">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-                            <div className="flex-1 overflow-auto no-scrollbar relative z-10">
-                                <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0 table-fixed">
+                            <div className="flex-1 overflow-x-auto overflow-y-auto relative z-10 custom-scrollbar">
+                                <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0 table-auto">
                                     <thead className="sticky top-0 z-20 shadow-sm">
                                         <tr className="bg-slate-50/95 backdrop-blur-sm">
-                                            <th className="px-8 py-6 border-b border-slate-100 w-16 text-center">
+                                            <th className="px-8 py-6 border-b border-slate-100 w-16 text-center sticky left-0 bg-slate-50 z-30">
                                                 <button onClick={handleSelectAll} className="text-slate-300 hover:text-brand transition-colors">
                                                     {selectedRowIds.size === filteredData.length && filteredData.length > 0 ? <CheckSquare size={20} className="text-brand" /> : <Square size={20} />}
                                                 </button>
                                             </th>
                                             {displaySchema.map((f:FieldDefinition) => (
-                                                <th key={f.key} className="px-6 py-6 font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 min-w-[150px]">{f.label}</th>
+                                                <th key={f.key} className="px-6 py-6 font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 min-w-[180px]">{f.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -429,7 +428,7 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                                         ) : paginatedData.length > 0 ? (
                                             paginatedData.map((row: any, rIdx: number) => (
                                                 <tr key={row.id || rIdx} className={`hover:bg-slate-50/50 transition-all group/row ${selectedRowIds.has(row.id) ? 'bg-brand/5' : ''}`}>
-                                                    <td className="px-8 py-4 border-b border-slate-50 text-center">
+                                                    <td className="px-8 py-4 border-b border-slate-50 text-center sticky left-0 bg-white group-hover/row:bg-slate-50/80 z-10">
                                                         <button onClick={() => handleSelectRow(row.id)} className={`${selectedRowIds.has(row.id) ? 'text-brand' : 'text-slate-200'} hover:text-brand transition-colors`}>
                                                             {selectedRowIds.has(row.id) ? <CheckSquare size={20} /> : <Square size={20} />}
                                                         </button>
@@ -451,8 +450,9 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
                             {/* Pagination & Global Actions */}
                             <div className="p-8 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative z-10">
                                 <div className="flex items-center gap-6">
-                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        展示 {(currentPage-1)*PAGE_SIZE + 1} - {Math.min(currentPage*PAGE_SIZE, filteredData.length)} / 共 {filteredData.length.toLocaleString()} 行记录
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-4">
+                                        <span>展示 {(currentPage-1)*PAGE_SIZE + 1} - {Math.min(currentPage*PAGE_SIZE, filteredData.length)} / 共 {filteredData.length.toLocaleString()} 行记录</span>
+                                        {filteredData.length > 0 && <span className="text-brand/50 font-black italic">提示: 字段较多时可按住 Shift 配合滚轮或拖动底部条横向滑动</span>}
                                     </div>
                                     {selectedRowIds.size > 0 && (
                                         <button onClick={() => setIsDeleteSelectedModalOpen(true)} className="px-6 py-2.5 bg-rose-500 text-white rounded-xl text-[10px] font-black hover:bg-rose-600 shadow-xl shadow-rose-500/20 transition-all active:scale-95 uppercase tracking-widest flex items-center gap-2 animate-slideIn">
