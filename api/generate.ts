@@ -1,34 +1,28 @@
-
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-// Use GenerateContentParameters instead of GenerateContentRequest according to guidelines
-import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters } from '@google/genai';
 
 export default async function handler(
     request: VercelRequest,
     response: VercelResponse,
 ) {
-    if (request.method !== 'POST') {
-        return response.status(405).json({ error: 'Method Not Allowed' });
-    }
+    if (request.method !== 'POST') return response.status(405).send('Method Not Allowed');
+
+    // 使用用户定义的 QWEN_API_KEY
+    const apiKey = process.env.QWEN_API_KEY;
+    if (!apiKey) return response.status(500).json({ error: '服务器未配置 QWEN_API_KEY' });
 
     try {
-        // Use GenerateContentParameters instead of GenerateContentRequest
-        const body: GenerateContentParameters = request.body;
+        const dashscopeRes = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(request.body)
+        });
 
-        if (!process.env.API_KEY) {
-            return response.status(500).json({ error: 'API_KEY environment variable not set.' });
-        }
-        
-        // Initialize GoogleGenAI with named apiKey parameter
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        
-        // Call generateContent directly on ai.models
-        const geminiResponse: GenerateContentResponse = await ai.models.generateContent(body);
-
-        return response.status(200).json(geminiResponse);
-
+        const data = await dashscopeRes.json();
+        return response.status(200).json(data);
     } catch (error: any) {
-        console.error("Error in serverless function:", error);
-        return response.status(500).json({ error: error.message || 'An unexpected error occurred.' });
+        return response.status(500).json({ error: error.message });
     }
 }

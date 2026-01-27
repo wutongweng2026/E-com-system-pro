@@ -1,8 +1,6 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PackagePlus, AlertTriangle, ChevronsRight, X, Warehouse, Truck, Bot, Sparkles, LoaderCircle, Store, LayoutDashboard, ChevronLeft, ChevronRight, PieChart, TrendingUp, Filter, CheckSquare, Square, ChevronDown, Search } from 'lucide-react';
-// Guideline: Always use direct SDK for Gemini calls
-import { GoogleGenAI } from "@google/genai";
+import { callQwen } from '../lib/ai';
 import { ProductSKU, Shop } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
 
@@ -112,7 +110,6 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
     const [aiInsight, setAiInsight] = useState('');
     const [isAiLoading, setIsAiLoading] = useState(false);
     
-    // 分页状态
     const [currentPage, setCurrentPage] = useState(1);
     const ROWS_PER_PAGE = 10;
 
@@ -252,20 +249,11 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             3.提供2条优化库存周转率的战略建议。
             专业、果断，200字以内。`;
 
-            // Guideline: Initialize SDK right before call
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
-            // Guideline: Call generateContent directly on ai.models
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt
-            });
-            
-            // Guideline: Use .text property for extraction
-            const text = response.text;
-            setAiInsight(text || "AI 供应链审计报告生成失败。");
+            // 使用 Qwen 引擎替代 Gemini
+            const text = await callQwen(prompt);
+            setAiInsight(text || "Qwen 供应链审计报告生成失败。");
         } catch (e: any) {
-            setAiInsight(`无法连接 AI 服务: ${e.message}`);
+            setAiInsight(`无法连接 Qwen 引擎: ${e.message}`);
         } finally {
             setIsAiLoading(false);
         }
@@ -287,7 +275,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                 onConfirm={handleReplenishConfirm}
             />
 
-            {/* Header - Simplified Title */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
@@ -317,60 +305,8 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                 ))}
             </div>
 
-            {/* Shop Summary Matrix */}
-            <div className="bg-white rounded-[48px] p-10 shadow-sm border border-slate-100 overflow-hidden group/matrix">
-                 <div className="flex items-center gap-4 mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-brand">
-                        <Store size={24} />
-                    </div>
-                    <div>
-                        <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">店铺周转健康矩阵</h3>
-                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Store-Level Supply Chain Health Matrix</p>
-                    </div>
-                </div>
-                <div className="overflow-x-auto no-scrollbar">
-                    <table className="w-full text-left text-[11px]">
-                        <thead className="bg-slate-50/50">
-                            <tr className="text-slate-400 font-black uppercase tracking-widest border-b border-slate-100">
-                                <th className="py-4 px-4">店铺名称</th>
-                                <th className="py-4 px-2 text-center">覆盖资产数</th>
-                                <th className="py-4 px-2 text-center">断货高危 (3D)</th>
-                                <th className="py-4 px-2 text-center">建议补货 (7D)</th>
-                                <th className="py-4 px-2 text-center">健康周转</th>
-                                <th className="py-4 px-4 text-center">健康率</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {shopSummaries.length === 0 ? (
-                                <tr><td colSpan={6} className="py-12 text-center text-slate-300 font-black italic">未检测到多店铺周转数据</td></tr>
-                            ) : (
-                                shopSummaries.map(s => {
-                                    const rate = (s.healthyCount / s.totalSkus * 100).toFixed(1);
-                                    return (
-                                        <tr key={s.shopId} className="hover:bg-slate-50/50 transition-colors">
-                                            <td className="py-4 px-4 font-black text-slate-800">{s.shopName}</td>
-                                            <td className="py-4 px-2 text-center font-mono font-bold text-slate-700">{s.totalSkus}</td>
-                                            <td className="py-4 px-2 text-center font-mono font-black text-rose-500">{s.severeCount}</td>
-                                            <td className="py-4 px-2 text-center font-mono font-bold text-amber-500">{s.warningCount}</td>
-                                            <td className="py-4 px-2 text-center font-mono text-slate-400">{s.healthyCount}</td>
-                                            <td className="py-4 px-4 text-center">
-                                                <span className={`px-2 py-1 rounded-lg font-black text-[10px] ${Number(rate) < 70 ? 'bg-rose-50 text-rose-600' : 'bg-brand/10 text-brand'}`}>
-                                                    {rate}%
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Main SKU Table Container */}
                 <div className="lg:col-span-8 bg-white rounded-[48px] p-10 shadow-sm border border-slate-100 min-h-[700px] flex flex-col">
-                    {/* Header Section for Table */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-blue-600">
@@ -382,7 +318,6 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                             </div>
                         </div>
 
-                        {/* Search & Filters Integrated Here */}
                         <div className="flex items-center gap-3 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
                             <div className="relative group">
                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand transition-colors" />
@@ -411,16 +346,6 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                                     </div>
                                 )}
                             </div>
-                            <select 
-                                value={statusFilter} 
-                                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                                className="bg-white border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-600 outline-none focus:border-brand appearance-none shadow-sm min-w-[110px]"
-                            >
-                                <option value="all">全策略状态</option>
-                                <option value="severe">断货高危</option>
-                                <option value="warning">建议补货</option>
-                                <option value="normal">健康周转</option>
-                            </select>
                         </div>
                     </div>
 
@@ -429,71 +354,48 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                             <thead>
                                 <tr className="text-left text-slate-400 font-black uppercase tracking-widest border-b border-slate-100">
                                     <th className="pb-5 px-2 w-[220px]">SKU 资产明细</th>
-                                    <th className="pb-5 px-2 text-center w-[80px]">经营模式</th>
+                                    <th className="pb-5 px-2 text-center w-[80px]">模式</th>
                                     <th className="pb-5 px-2 text-center w-[160px]">当前库存 (仓/直/合)</th>
                                     <th className="pb-5 px-2 text-center w-[80px]">15日销</th>
-                                    <th className="pb-5 px-2 text-center w-[80px]">预计补货</th>
                                     <th className="pb-5 px-2 text-center w-[100px]">周转状态</th>
                                     <th className="pb-5 px-2 text-right w-[60px]">操作</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-50">
-                                {paginatedData.length === 0 ? (
-                                    <tr><td colSpan={7} className="py-40 text-center text-slate-300 font-black italic">Awaiting Inventory Audit Job</td></tr>
-                                ) : (
-                                    paginatedData.map(item => (
-                                        <tr key={item.sku.id} className="hover:bg-slate-50/80 transition-colors group">
-                                            <td className="py-5 px-2">
-                                                <div className="font-black text-slate-800 truncate text-xs" title={item.sku.name}>{item.sku.name}</div>
-                                                <div className="text-[9px] text-slate-400 font-black mt-1 uppercase tracking-tighter opacity-60">{item.sku.code} @ {shopIdToName.get(item.sku.shopId)}</div>
-                                            </td>
-                                            <td className="py-5 px-2 text-center">
-                                                <span className={`px-2 py-0.5 rounded-md font-black text-[9px] uppercase ${item.sku.mode === '入仓' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                                                    {item.sku.mode || '未定'}
-                                                </span>
-                                            </td>
-                                            <td className="py-5 px-2 text-center font-mono">
-                                                <span className={`${item.sku.mode === '入仓' ? 'text-brand font-black' : 'text-slate-400'}`}>{item.sku.warehouseStock || 0}</span> / 
-                                                <span className={`${item.sku.mode === '厂直' ? 'text-brand font-black' : 'text-slate-400'} ml-1`}>{item.sku.factoryStock || 0}</span> / 
-                                                <span className="font-black text-slate-900 ml-1">{item.totalStock}</span>
-                                            </td>
-                                            <td className="py-5 px-2 text-center font-mono font-bold text-slate-700">{item.sales15d}</td>
-                                            <td className="py-5 px-2 text-center">
-                                                {item.suggestedQty > 0 ? (
-                                                    <span className="font-black text-brand">+{item.suggestedQty}</span>
-                                                ) : <span className="text-slate-200">-</span>}
-                                            </td>
-                                            <td className="py-5 px-2 text-center">
-                                                {item.status === 'severe' && <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 font-black text-[9px] uppercase">断货高危</span>}
-                                                {item.status === 'warning' && <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 font-black text-[9px] uppercase">建议补货</span>}
-                                                {item.status === 'normal' && <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-600 font-black text-[9px] uppercase">健康</span>}
-                                            </td>
-                                            <td className="py-5 px-2 text-right">
-                                                <button onClick={() => setReplenishingSku(item.sku)} className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-brand hover:bg-brand/10 transition-all">
-                                                    <PackagePlus size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
+                                {paginatedData.map(item => (
+                                    <tr key={item.sku.id} className="hover:bg-slate-50/80 transition-colors group">
+                                        <td className="py-5 px-2">
+                                            <div className="font-black text-slate-800 truncate text-xs" title={item.sku.name}>{item.sku.name}</div>
+                                            <div className="text-[9px] text-slate-400 font-black mt-1 uppercase tracking-tighter opacity-60">{item.sku.code}</div>
+                                        </td>
+                                        <td className="py-5 px-2 text-center">
+                                            <span className={`px-2 py-0.5 rounded-md font-black text-[9px] uppercase ${item.sku.mode === '入仓' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                {item.sku.mode || '未定'}
+                                            </span>
+                                        </td>
+                                        <td className="py-5 px-2 text-center font-mono">
+                                            <span className={`${item.sku.mode === '入仓' ? 'text-brand font-black' : 'text-slate-400'}`}>{item.sku.warehouseStock || 0}</span> / 
+                                            <span className={`${item.sku.mode === '厂直' ? 'text-brand font-black' : 'text-slate-400'} ml-1`}>{item.sku.factoryStock || 0}</span> / 
+                                            <span className="font-black text-slate-900 ml-1">{item.totalStock}</span>
+                                        </td>
+                                        <td className="py-5 px-2 text-center font-mono font-bold text-slate-700">{item.sales15d}</td>
+                                        <td className="py-5 px-2 text-center">
+                                            {item.status === 'severe' && <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 font-black text-[9px] uppercase">断货高危</span>}
+                                            {item.status === 'warning' && <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 font-black text-[9px] uppercase">建议补货</span>}
+                                            {item.status === 'normal' && <span className="px-2 py-0.5 rounded-md bg-green-50 text-green-600 font-black text-[9px] uppercase">健康</span>}
+                                        </td>
+                                        <td className="py-5 px-2 text-right">
+                                            <button onClick={() => setReplenishingSku(item.sku)} className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-brand hover:bg-brand/10 transition-all">
+                                                <PackagePlus size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
-
-                    {/* Pagination */}
-                    {filteredData.length > ROWS_PER_PAGE && (
-                        <div className="mt-8 pt-8 border-t border-slate-50 flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">展示 {(currentPage-1)*ROWS_PER_PAGE + 1} - {Math.min(currentPage*ROWS_PER_PAGE, filteredData.length)} / 共 {filteredData.length} SKU</span>
-                            <div className="flex items-center gap-2">
-                                <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-3 rounded-2xl border border-slate-100 text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all bg-slate-50/50 hover:bg-white"><ChevronLeft size={16} /></button>
-                                <div className="text-xs font-black text-slate-700 px-4">第 {currentPage} / {totalPages} 页</div>
-                                <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-3 rounded-2xl border border-slate-100 text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all bg-slate-50/50 hover:bg-white"><ChevronRight size={16} /></button>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {/* AI Supply Chain Officer */}
                 <div className="lg:col-span-4 space-y-8">
                     <div className="bg-white rounded-[48px] p-10 text-slate-900 shadow-sm border border-slate-100 flex flex-col relative overflow-hidden group/ai h-full min-h-[600px]">
                         <div className="absolute top-0 right-0 w-80 h-80 bg-brand/5 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
@@ -511,7 +413,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                         <button 
                             onClick={handleAiAudit} 
                             disabled={isAiLoading || filteredData.length === 0} 
-                            className="w-full relative z-10 mb-8 py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-2xl shadow-brand/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 disabled:opacity-30 active:scale-95 uppercase tracking-widest"
+                            className="w-full relative z-10 mb-8 py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-2xl shadow-brand/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 active:scale-95 uppercase tracking-widest disabled:opacity-30"
                         >
                             {isAiLoading ? <LoaderCircle size={20} className="animate-spin" /> : <TrendingUp size={20} />}
                             启动全链路供需审计
@@ -521,23 +423,17 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                             {isAiLoading ? (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4">
                                     <LoaderCircle size={32} className="animate-spin text-brand" />
-                                    <p className="text-[10px] font-black uppercase tracking-widest">AI 正在穿透供应链物理流记录...</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest">正在穿透供应链物理记录...</p>
                                 </div>
                             ) : aiInsight ? (
-                                <div className="text-sm text-slate-600 leading-loose whitespace-pre-wrap font-medium animate-fadeIn">
+                                <div className="text-sm text-slate-600 leading-loose whitespace-pre-wrap font-medium">
                                     {aiInsight}
                                 </div>
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-300 text-center opacity-60">
-                                    <PieChart size={64} className="mb-6 opacity-10" />
-                                    <p className="text-xs font-black uppercase tracking-widest">Awaiting Inventory Audit</p>
-                                    <p className="text-[10px] mt-2 font-bold max-w-[200px]">点击上方按钮以开启全量供需穿透与 AI 补货策略建议。</p>
+                                    <p className="text-xs font-black uppercase tracking-widest">Awaiting Audit Job</p>
                                 </div>
                             )}
-                        </div>
-                        
-                        <div className="mt-8 pt-8 border-t border-slate-100 text-center relative z-10 shrink-0">
-                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Decision Intelligence Powered by Gemini 3.0</p>
                         </div>
                     </div>
                 </div>
