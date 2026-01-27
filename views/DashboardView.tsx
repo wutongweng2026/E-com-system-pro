@@ -93,7 +93,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
 
     const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
 
-    // 关键逻辑：过滤 [参与统计：是] 的有效资产
+    // 关键逻辑对齐：仅获取[统计：是]的有效SKU映射
     const enabledSkusMap = useMemo(() => {
         const map = new Map<string, ProductSKU>();
         skus.forEach(s => {
@@ -102,18 +102,10 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
         return map;
     }, [skus]);
 
-    // 维度对齐：SKU -> 店铺 -> 经营模式
-    const skuToShopModeMap = useMemo(() => {
-        const map = new Map<string, string>();
-        const shopIdToMode = new Map(shops.map(s => [s.id, s.mode]));
-        skus.forEach(s => {
-            const mode = shopIdToMode.get(s.shopId) || '自营';
-            map.set(s.code, mode);
-        });
-        return map;
-    }, [skus, shops]);
+    // 店铺ID -> 经营模式 映射表
+    const shopIdToMode = useMemo(() => new Map(shops.map(s => [s.id, s.mode])), [shops]);
 
-    const isSelfOperatedMode = (mode: string | undefined): boolean => {
+    const isSelfOperated = (mode: string | undefined): boolean => {
         if (!mode) return true;
         return ['自营', '入仓', 'LBP', 'SOPL'].includes(mode);
     };
@@ -165,9 +157,10 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                         if (code && enabledSkusMap.has(code)) {
                             const amount = Number(row.paid_amount) || 0;
                             const items = Number(row.paid_items) || 0;
-                            const mode = skuToShopModeMap.get(code) || '自营';
+                            const skuAsset = enabledSkusMap.get(code);
+                            const mode = shopIdToMode.get(skuAsset?.shopId || '') || '自营';
                             stats.gmv.total += amount; stats.ca.total += items;
-                            if (isSelfOperatedMode(mode)) { stats.gmv.self += amount; stats.ca.self += items; }
+                            if (isSelfOperated(mode)) { stats.gmv.self += amount; stats.ca.self += items; }
                             else { stats.gmv.pop += amount; stats.ca.pop += items; }
                         }
                     });
@@ -175,9 +168,10 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                         const code = getSkuIdentifier(row);
                         if (code && enabledSkusMap.has(code)) {
                             const cost = Number(row.cost) || 0;
-                            const mode = skuToShopModeMap.get(code) || '自营';
+                            const skuAsset = enabledSkusMap.get(code);
+                            const mode = shopIdToMode.get(skuAsset?.shopId || '') || '自营';
                             stats.spend.total += cost;
-                            if (isSelfOperatedMode(mode)) stats.spend.self += cost; else stats.spend.pop += cost;
+                            if (isSelfOperated(mode)) stats.spend.self += cost; else stats.spend.pop += cost;
                         }
                     });
                     return stats;
@@ -195,16 +189,18 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 currSz.forEach(r => {
                     const code = getSkuIdentifier(r);
                     if (code && enabledSkusMap.has(code) && dailyAgg[r.date]) {
-                        const mode = skuToShopModeMap.get(code) || '自营';
-                        if (isSelfOperatedMode(mode)) { dailyAgg[r.date].gmv.self += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.self += Number(r.paid_items) || 0; }
+                        const skuAsset = enabledSkusMap.get(code);
+                        const mode = shopIdToMode.get(skuAsset?.shopId || '') || '自营';
+                        if (isSelfOperated(mode)) { dailyAgg[r.date].gmv.self += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.self += Number(r.paid_items) || 0; }
                         else { dailyAgg[r.date].gmv.pop += Number(r.paid_amount) || 0; dailyAgg[r.date].ca.pop += Number(r.paid_items) || 0; }
                     }
                 });
                 currJzt.forEach(r => {
                     const code = getSkuIdentifier(r);
                     if (code && enabledSkusMap.has(code) && dailyAgg[r.date]) {
-                        const mode = skuToShopModeMap.get(code) || '自营';
-                        if (isSelfOperatedMode(mode)) dailyAgg[r.date].spend.self += Number(r.cost) || 0; else dailyAgg[r.date].spend.pop += Number(r.cost) || 0;
+                        const skuAsset = enabledSkusMap.get(code);
+                        const mode = shopIdToMode.get(skuAsset?.shopId || '') || '自营';
+                        if (isSelfOperated(mode)) dailyAgg[r.date].spend.self += Number(r.cost) || 0; else dailyAgg[r.date].spend.pop += Number(r.cost) || 0;
                     }
                 });
 
@@ -282,7 +278,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
             finally { setTimeout(() => setIsLoading(false), 300); }
         };
         fetchData();
-    }, [rangeType, customRange, enabledSkusMap, skuToShopModeMap, shops, skus]);
+    }, [rangeType, customRange, enabledSkusMap, shopIdToMode, skus, shops]);
 
     return (
         <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10">
@@ -360,19 +356,19 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                     </div>
                 </div>
 
-                <div className="xl:col-span-4 bg-navy rounded-[48px] p-10 text-white shadow-2xl flex flex-col relative overflow-hidden group/room">
+                <div className="xl:col-span-4 bg-navy rounded-[48px] p-10 text-white shadow-2xl flex flex-col relative overflow-hidden group/room h-[540px]">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-brand/5 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
                     <div className="flex items-center gap-4 mb-8 relative z-10">
                         <div className="w-14 h-14 rounded-3xl bg-brand flex items-center justify-center shadow-lg border border-white/10 transition-transform duration-500">
                             <BotIcon size={28} className="text-white" />
                         </div>
                         <div>
-                            <h3 className="text-xl font-black tracking-tight flex items-center gap-2">AI 战略诊断室 <Sparkles size={16} className="text-brand animate-pulse" /></h3>
+                            <h3 className="text-xl font-black tracking-tight flex items-center gap-2 font-sans">AI 战略诊断室 <Sparkles size={16} className="text-brand animate-pulse" /></h3>
                             <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Neural Decision Hub</p>
                         </div>
                     </div>
                     
-                    <div className="flex-1 relative z-10 overflow-hidden mb-8 h-[260px]">
+                    <div className="flex-1 relative z-10 overflow-hidden mb-8 h-[280px]">
                         {diagnoses.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center bg-white/5 rounded-[32px] border border-white/5 p-8 text-center opacity-40">
                                 <DatabaseZap size={48} className="text-slate-500 mb-6" />
@@ -381,12 +377,12 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                         ) : (
                             <div className={`space-y-4 ${diagnoses.length > 2 ? 'animate-diagScroll' : ''}`}>
                                 {diagnoses.map((d) => (
-                                    <div key={d.id} className="h-[120px] shrink-0">
+                                    <div key={d.id} className="h-[130px] shrink-0">
                                         <DiagnosisCard diagnosis={d} />
                                     </div>
                                 ))}
                                 {diagnoses.length > 2 && diagnoses.slice(0, 2).map((d) => (
-                                    <div key={`${d.id}-repeat`} className="h-[120px] shrink-0">
+                                    <div key={`${d.id}-repeat`} className="h-[130px] shrink-0">
                                         <DiagnosisCard diagnosis={d} />
                                     </div>
                                 ))}
@@ -405,7 +401,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
             <style>{`
                 @keyframes diagScroll {
                     0% { transform: translateY(0); }
-                    100% { transform: translateY(calc(-136px * ${diagnoses.length})); }
+                    100% { transform: translateY(calc(-146px * ${diagnoses.length})); }
                 }
                 .animate-diagScroll {
                     animation: diagScroll ${Math.max(6, diagnoses.length * 3)}s linear infinite;
@@ -457,7 +453,7 @@ const DiagnosisCard: React.FC<{ diagnosis: Diagnosis; isFullMode?: boolean }> = 
     }
 
     return (
-        <div className={`rounded-[32px] border transition-all hover:bg-white/5 group/dcard ${cfg.bg} ${cfg.border} animate-slideIn p-5 h-[120px] flex flex-col justify-center`}>
+        <div className={`rounded-[32px] border transition-all hover:bg-white/5 group/dcard ${cfg.bg} ${cfg.border} animate-slideIn p-5 h-[130px] flex flex-col justify-center`}>
             <div className="flex items-center gap-3 mb-2">
                 <div className={`${cfg.color} shrink-0 group-hover/dcard:scale-110 transition-transform`}>{cfg.icon}</div>
                 <p className="text-sm font-black uppercase tracking-tight text-slate-100 truncate">{diagnosis.title}</p>
@@ -506,7 +502,7 @@ const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBet
     const selfChange = calculateChange(value.self.current, value.self.previous);
     const popChange = calculateChange(value.pop.current, value.pop.previous);
 
-    const renderChangeBadge = (change: number, isSmall: boolean = false) => {
+    const renderChangeBadge = (change: number) => {
         const isPositive = change >= 0;
         const isGood = (isPositive && isHigherBetter) || (!isPositive && !isHigherBetter);
         const colorClass = isGood ? 'text-green-600 bg-green-50' : 'text-rose-600 bg-rose-50';
@@ -541,14 +537,14 @@ const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBet
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 font-sans">自营店铺</p>
                     <div className="flex items-center gap-1.5 min-w-0">
                         <p className="text-[11px] font-black text-slate-700 tabular-nums truncate">{prefix}{formatVal(value.self.current)}</p>
-                        {!isLoading && renderChangeBadge(selfChange, true)}
+                        {!isLoading && renderChangeBadge(selfChange)}
                     </div>
                 </div>
                 <div className="border-l border-slate-200 pl-4 min-w-0">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 font-sans">POP店铺</p>
                     <div className="flex items-center gap-1.5 min-w-0">
                         <p className="text-[11px] font-black text-slate-700 tabular-nums truncate">{prefix}{formatVal(value.pop.current)}</p>
-                        {!isLoading && renderChangeBadge(popChange, true)}
+                        {!isLoading && renderChangeBadge(popChange)}
                     </div>
                 </div>
             </div>
