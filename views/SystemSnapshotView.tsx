@@ -124,10 +124,17 @@ export const SystemSnapshotView = ({ snapshots, settings, onCreate, onRestore, o
             
             <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
 
-            <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">系统快照中心</h1>
-                    <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">SYSTEM STATE BACKUP & RESTORE</p>
+            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+                {/* Header - Standardized */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                    <div>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层全状态备份引擎</span>
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">系统快照中心</h1>
+                        <p className="text-slate-500 font-medium text-xs mt-1 italic">System State Backup & Restore Center</p>
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

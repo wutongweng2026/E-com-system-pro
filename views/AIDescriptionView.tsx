@@ -155,4 +155,52 @@ export const AIDescriptionView = ({ skus }: AIDescriptionViewProps) => {
                 {/* Output Panel */}
                 <div className="lg:col-span-8">
                     <div className="bg-white rounded-[40px] p-10 h-full flex flex-col shadow-xl border border-slate-100 relative overflow-hidden group">
-                        <div className="
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        
+                        <div className="relative z-10 flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
+                            <div className="flex items-center gap-3">
+                                <Layout size={20} className="text-brand" />
+                                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">预览生成结果</h3>
+                            </div>
+                            {generatedDescription && (
+                                <button 
+                                    onClick={handleCopy}
+                                    className="flex items-center gap-2 px-6 py-2 rounded-xl bg-slate-100 text-slate-600 font-black text-xs hover:bg-slate-200 transition-all active:scale-95"
+                                >
+                                    <Clipboard size={14} /> {copyButtonText}
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="relative z-10 flex-1">
+                            {isLoading ? (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                                    <LoaderCircle size={48} className="animate-spin mb-6" />
+                                    <p className="font-black text-sm uppercase tracking-widest">Generating Magic...</p>
+                                </div>
+                            ) : generatedDescription ? (
+                                <div className="bg-slate-50/50 rounded-3xl p-8 border border-slate-100 h-full overflow-y-auto no-scrollbar animate-fadeIn">
+                                    <pre className="whitespace-pre-wrap text-sm text-slate-700 font-medium leading-loose">
+                                        {generatedDescription}
+                                    </pre>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-200">
+                                    <Send size={64} className="mb-6 opacity-20" />
+                                    <p className="font-black text-sm uppercase tracking-widest opacity-40">Ready to ignite your copy</p>
+                                    <p className="text-xs mt-2 font-bold opacity-30">配置参数后点击左侧按钮</p>
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="mt-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-500 text-xs font-bold flex items-center gap-2">
+                                    <AlertCircle size={14} /> {error}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

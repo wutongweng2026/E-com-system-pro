@@ -3,18 +3,16 @@ import React from 'react';
 import { Binoculars, ShieldAlert, Zap, Bot, Target, Search, BarChart3, Globe } from 'lucide-react';
 
 export const AICompetitorMonitoringView = () => (
-  <div className="p-8 max-w-[1600px] mx-auto animate-fadeIn space-y-10">
-    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+  <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
+    {/* Header - Standardized */}
+    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
         <div>
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight">AI 竞品监控中心</h1>
-            <p className="text-slate-500 mt-2 font-bold text-xs tracking-widest uppercase">Competitive Intelligence System</p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-100">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-            </span>
-            <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">神经模型训练中</span>
+            <div className="flex items-center gap-3 mb-2">
+                <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                <span className="text-[10px] font-black text-brand uppercase tracking-widest">竞品雷达神经模型训练中</span>
+            </div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 竞品监控中心</h1>
+            <p className="text-slate-500 font-medium text-xs mt-1 italic">Competitive Intelligence System & Market Radar</p>
         </div>
     </div>
     
