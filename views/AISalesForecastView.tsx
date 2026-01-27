@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { TrendingUp, Bot, ChevronDown, Sparkles, LoaderCircle, AlertCircle, CalendarDays, BarChartHorizontalBig } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { TrendingUp, Bot, ChevronDown, Sparkles, LoaderCircle, AlertCircle, CalendarDays, BarChartHorizontalBig, Search, Box, LayoutDashboard, Target, Activity, X } from 'lucide-react';
 import { DB } from '../lib/db';
 import { ProductSKU } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
-// Added GoogleGenAI import
-import { GoogleGenAI } from "@google/genai";
 
 interface Forecast {
     date: string;
@@ -18,16 +16,42 @@ interface ForecastResult {
 }
 
 export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
-    const [selectedSkuId, setSelectedSkuId] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [selectedSku, setSelectedSku] = useState<ProductSKU | null>(null);
+    const searchRef = useRef<HTMLDivElement>(null);
+
     const [forecastDays, setForecastDays] = useState<number>(7);
     const [influencingFactors, setInfluencingFactors] = useState('');
     const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // 点击外部关闭搜索下拉
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+                setIsSearchOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // 过滤 SKU
+    const filteredOptions = useMemo(() => {
+        if (!searchTerm) return skus.slice(0, 10);
+        const lower = searchTerm.toLowerCase();
+        return skus.filter(s => 
+            s.code.toLowerCase().includes(lower) || 
+            s.name.toLowerCase().includes(lower) ||
+            (s.model && s.model.toLowerCase().includes(lower))
+        ).slice(0, 10);
+    }, [skus, searchTerm]);
+
     const handleGenerate = async () => {
-        if (!selectedSkuId) {
-            setError('请先选择一个SKU。');
+        if (!selectedSku) {
+            setError('请先搜索并选择一个SKU。');
             return;
         }
         setIsLoading(true);
@@ -35,10 +59,6 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
         setForecastResult(null);
 
         try {
-            const sku = skus.find(s => s.id === selectedSkuId);
-            if (!sku) throw new Error("未找到指定的SKU信息。");
-            
-            // Fetch 90 days of history from DB
             const ninetyDaysAgo = new Date();
             ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
             const startDateStr = ninetyDaysAgo.toISOString().split('T')[0];
@@ -46,7 +66,7 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
 
             const allRows = await DB.getRange('fact_shangzhi', startDateStr, todayStr);
             const historicalData = allRows
-                .filter(row => getSkuIdentifier(row) === sku.code)
+                .filter(row => getSkuIdentifier(row) === selectedSku.code)
                 .map(row => ({ date: row.date, sales: Number(row.paid_items) || 0 }))
                 .sort((a, b) => a.date.localeCompare(b.date));
             
@@ -56,16 +76,14 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
 
             const historicalDataCsv = "Date,Sales\n" + historicalData.map(d => `${d.date},${d.sales}`).join('\n');
             
-            const prompt = `你是一名顶级电商算法专家。请根据以下[${sku.name}]的历史销量：
+            const prompt = `你是一名顶级电商算法专家。请根据以下[${selectedSku.name}]的历史销量：
             \`\`\`csv
             ${historicalDataCsv}
             \`\`\`
             营销变量：${influencingFactors || '无特殊营销活动'}
             
             任务：预测未来${forecastDays}天的销量。考虑：
-            1. 历史趋势的惯性；
-            2. 周期性特征；
-            3. 营销变量对斜率的修正。
+            1. 历史趋势的惯性；2. 周期性特征；3. 营销变量对斜率的修正。
             
             必须严格按JSON返回：
             {
@@ -74,18 +92,23 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
               "forecast": [{ "date": "YYYY-MM-DD", "predicted_sales": 数字 }]
             }`;
             
-            // Fix: Use GoogleGenAI SDK directly instead of fetch to avoid issues with JSON serialization and follow developer guidelines
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: prompt,
-                config: { responseMimeType: "application/json" }
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'gemini-3-flash-preview',
+                    contents: { parts: [{ text: prompt }] },
+                    config: { responseMimeType: "application/json" }
+                })
             });
 
-            const resultJson = JSON.parse(response.text || "{}") as ForecastResult;
+            if (!response.ok) throw new Error("AI 预测服务连接失败");
+            
+            const resData = await response.json();
+            const resultJson = JSON.parse(resData.candidates?.[0]?.content?.parts?.[0]?.text || resData.text || "{}") as ForecastResult;
             setForecastResult(resultJson);
         } catch (err: any) {
-            setError(err.message || 'AI预测引擎响应异常');
+            setError(err.message || 'AI 预测引擎响应异常');
         } finally {
             setIsLoading(false);
         }
@@ -94,128 +117,210 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
     const totalPredictedSales = forecastResult?.forecast.reduce((sum, item) => sum + item.predicted_sales, 0) || 0;
 
     return (
-        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
-            {/* Header - Standardized */}
+        <div className="p-8 md:p-10 w-full animate-fadeIn space-y-10">
+            {/* Standardized Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">算法预测模型运行中</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">算法决策流计算中</span>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 销售预测</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Predictive Sales Intelligence & Demand Forecasting</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 销售预测中心</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Predictive Sales Intelligence & Demand Forecasting Engine</p>
                 </div>
             </div>
 
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                <div className="lg:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-6 self-start">
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">1. 预测对象</label>
-                        <div className="relative">
-                           <select 
-                                value={selectedSkuId} 
-                                onChange={e => setSelectedSkuId(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm"
-                            >
-                                <option value="">请选择 SKU...</option>
-                                {skus.map(sku => <option key={sku.id} value={sku.id}>{sku.name} ({sku.code})</option>)}
-                            </select>
-                            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                {/* Side Control Panel */}
+                <div className="lg:col-span-4 space-y-8">
+                    <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 p-10 space-y-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                        
+                        {/* Searchable SKU Selector */}
+                        <div className="space-y-3 relative z-10" ref={searchRef}>
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">1. 资产搜索检索</label>
+                            <div className="relative">
+                                <input 
+                                    type="text"
+                                    placeholder="输入 SKU 编码、型号或名称..."
+                                    value={selectedSku ? selectedSku.name : searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        if(selectedSku) setSelectedSku(null);
+                                        setIsSearchOpen(true);
+                                    }}
+                                    onFocus={() => setIsSearchOpen(true)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-[24px] pl-12 pr-10 py-4 text-sm font-black text-slate-700 outline-none focus:border-brand shadow-inner transition-all"
+                                />
+                                <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                {selectedSku && (
+                                    <button onClick={() => { setSelectedSku(null); setSearchTerm(''); }} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 transition-colors">
+                                        <X size={16} />
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {isSearchOpen && !selectedSku && (
+                                <div className="absolute top-full left-0 w-full mt-2 bg-white border border-slate-200 rounded-[28px] shadow-2xl z-50 p-4 max-h-64 overflow-y-auto no-scrollbar animate-slideIn">
+                                    {filteredOptions.length > 0 ? (
+                                        filteredOptions.map(sku => (
+                                            <button 
+                                                key={sku.id} 
+                                                onClick={() => { setSelectedSku(sku); setIsSearchOpen(false); setForecastResult(null); }}
+                                                className="w-full flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl text-left transition-colors group"
+                                            >
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-brand group-hover:bg-brand/10 transition-all"><Box size={18} /></div>
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-black text-slate-800 truncate">{sku.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{sku.code} • {sku.model || '标准型号'}</p>
+                                                </div>
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="py-8 text-center text-slate-300 font-black text-[10px] uppercase tracking-widest italic">未找到匹配资产</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    </div>
 
-                    <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">2. 预测跨度</label>
-                        <div className="flex gap-2">
-                            {[7, 14, 30].map(days => (
-                                <button key={days} onClick={() => setForecastDays(days)} className={`flex-1 py-2 text-xs font-black rounded-xl border-2 transition-all ${forecastDays === days ? 'bg-slate-800 border-slate-800 text-white shadow-md' : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-brand'}`}>{`${days}D`}</button>
-                            ))}
+                        {/* Forecast Days */}
+                        <div className="space-y-3 relative z-10">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">2. 时间窗口投影</label>
+                            <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner border border-slate-200">
+                                {[7, 14, 30].map(days => (
+                                    <button 
+                                        key={days} 
+                                        onClick={() => setForecastDays(days)} 
+                                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black transition-all ${forecastDays === days ? 'bg-white text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        未来 {days} 天
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
 
-                     <div>
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">3. 动态干扰项</label>
-                        <textarea
-                            value={influencingFactors}
-                            onChange={e => setInfluencingFactors(e.target.value)}
-                            placeholder="描述未来事件，如“618大促提报”、“小红书KOL推广”"
-                            className="w-full h-32 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-700 outline-none focus:border-[#70AD47] resize-none shadow-inner no-scrollbar"
-                        ></textarea>
-                    </div>
+                        {/* Influencing Factors */}
+                        <div className="space-y-3 relative z-10">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">3. 动态干扰因子 (可选)</label>
+                            <textarea
+                                value={influencingFactors}
+                                onChange={e => setInfluencingFactors(e.target.value)}
+                                placeholder="输入未来营销事件，如“618 满减”、“小红书投放”"
+                                className="w-full h-32 bg-slate-50 border border-slate-200 rounded-[28px] px-6 py-4 text-xs font-bold text-slate-700 outline-none focus:border-brand shadow-inner resize-none no-scrollbar"
+                            />
+                        </div>
 
-                     <button 
-                        onClick={handleGenerate} 
-                        disabled={isLoading || !selectedSkuId}
-                        className="w-full py-4 rounded-2xl bg-brand text-white font-black text-sm hover:bg-[#5da035] shadow-lg shadow-brand/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 uppercase tracking-widest"
-                    >
-                        {isLoading ? <LoaderCircle size={18} className="animate-spin" /> : <TrendingUp size={18} />}
-                        执行时间序列预测
-                    </button>
+                        <button 
+                            onClick={handleGenerate} 
+                            disabled={isLoading || !selectedSku}
+                            className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-2xl shadow-brand/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30 uppercase tracking-widest"
+                        >
+                            {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <TrendingUp size={20} />}
+                            执行高精度算法预测
+                        </button>
+                    </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 p-8 min-h-[600px] flex flex-col">
-                    <h3 className="font-black text-slate-800 flex items-center gap-2 mb-8 tracking-tight">
-                        <Bot size={20} className="text-[#70AD47]" />
-                        预测结果分析报告
-                    </h3>
-                    
-                    <div className="flex-1">
-                        {isLoading ? (
-                             <div className="flex flex-col items-center justify-center h-full text-slate-300">
-                                <LoaderCircle size={48} className="animate-spin mb-6" />
-                                <p className="font-black text-sm uppercase tracking-widest">Calculating Prophecy...</p>
-                            </div>
-                        ) : error ? (
-                            <div className="bg-rose-50 rounded-2xl p-6 text-rose-500 flex gap-4 border border-rose-100 animate-slideIn">
-                                <AlertCircle size={24} className="shrink-0" />
+                {/* Result Display Area */}
+                <div className="lg:col-span-8 flex flex-col space-y-8">
+                    {/* Forecast Main Content */}
+                    <div className="bg-white rounded-[48px] p-10 shadow-sm border border-slate-100 flex-1 relative overflow-hidden flex flex-col group/result">
+                        <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(112,173,71,0.03),transparent_70%)] pointer-events-none"></div>
+                        
+                        <div className="flex items-center justify-between mb-10 border-b border-slate-50 pb-8 shrink-0 relative z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-3xl bg-slate-50 flex items-center justify-center text-brand border border-slate-100 shadow-inner group-hover/result:scale-110 transition-transform duration-500">
+                                    <LayoutDashboard size={28} />
+                                </div>
                                 <div>
-                                    <p className="font-black text-sm">预测中断</p>
-                                    <p className="text-xs mt-1 font-bold leading-relaxed">{error}</p>
+                                    <h3 className="text-xl font-black text-slate-800 tracking-tight uppercase">销售预测分析报告</h3>
+                                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">Physical Performance Projections</p>
                                 </div>
                             </div>
-                        ) : forecastResult ? (
-                            <div className="animate-fadeIn space-y-10">
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 shadow-inner">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">周期总预测件数</p>
-                                        <p className="text-3xl font-black text-[#70AD47] mt-2 tabular-nums">{totalPredictedSales.toLocaleString()}</p>
-                                    </div>
-                                    <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 shadow-inner">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">平均日销量预估</p>
-                                        <p className="text-3xl font-black text-slate-800 mt-2 tabular-nums">{(totalPredictedSales / forecastDays).toFixed(1)}</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-[#70AD47]/5 rounded-2xl p-8 border border-[#70AD47]/20 relative overflow-hidden">
-                                    <Sparkles size={40} className="absolute -right-4 -bottom-4 text-brand opacity-10 rotate-12" />
-                                    <h4 className="text-[10px] font-black text-[#70AD47] uppercase tracking-widest mb-4">AI 洞察摘要</h4>
-                                    <p className="text-sm text-slate-700 font-bold leading-relaxed">{forecastResult.summary}</p>
-                                    <div className="mt-4 pt-4 border-t border-[#70AD47]/10">
-                                        <p className="text-xs text-slate-500 leading-relaxed font-medium italic">{forecastResult.analysis}</p>
-                                    </div>
-                                </div>
+                        </div>
 
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">每日趋势明细集</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
-                                        {forecastResult.forecast.map(item => (
-                                            <div key={item.date} className="flex justify-between items-center bg-white border border-slate-100 p-4 rounded-2xl hover:border-brand/30 transition-all hover:shadow-sm">
-                                                <span className="text-xs font-black text-slate-600 flex items-center gap-2">
-                                                    <CalendarDays size={14} className="text-slate-300" />
-                                                    {item.date}
-                                                </span>
-                                                <span className="text-sm font-black text-slate-800 tabular-nums">{item.predicted_sales} <span className="text-[10px] text-slate-400 font-bold ml-1">PCS</span></span>
-                                            </div>
-                                        ))}
+                        <div className="flex-1 relative z-10">
+                            {isLoading ? (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                                    <div className="w-20 h-20 border-4 border-slate-100 border-t-brand rounded-full animate-spin mb-6"></div>
+                                    <p className="font-black text-xs uppercase tracking-[0.4em] animate-pulse">Algorithmic Processing...</p>
+                                </div>
+                            ) : error ? (
+                                <div className="bg-rose-50/50 rounded-[32px] p-10 text-rose-500 flex flex-col items-center text-center gap-4 border border-rose-100 animate-slideIn">
+                                    <AlertCircle size={48} className="opacity-40" />
+                                    <div className="space-y-1">
+                                        <p className="font-black text-sm uppercase">预测任务被中断</p>
+                                        <p className="text-xs font-bold leading-relaxed max-w-sm">{error}</p>
                                     </div>
                                 </div>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-slate-200">
-                                <BarChartHorizontalBig size={64} className="mb-6 opacity-20" />
-                                <p className="font-black text-sm uppercase tracking-widest opacity-40">Configure Target To Begin Forecast</p>
-                            </div>
-                        )}
+                            ) : forecastResult ? (
+                                <div className="animate-fadeIn space-y-10">
+                                    {/* KPI Summary */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="p-8 rounded-[32px] bg-slate-50 border border-slate-100 shadow-sm hover:shadow-xl transition-all">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">周期累计预测销量</h4>
+                                                <div className="text-brand opacity-40"><Target size={20}/></div>
+                                            </div>
+                                            <p className="text-4xl font-black text-slate-900 tabular-nums tracking-tighter">{totalPredictedSales.toLocaleString()} <span className="text-sm text-slate-300 ml-1">PCS</span></p>
+                                        </div>
+                                        <div className="p-8 rounded-[32px] bg-slate-50 border border-slate-100 shadow-sm hover:shadow-xl transition-all">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">平均单日预估</h4>
+                                                <div className="text-blue-500 opacity-40"><Activity size={20}/></div>
+                                            </div>
+                                            <p className="text-4xl font-black text-slate-900 tabular-nums tracking-tighter">{(totalPredictedSales / forecastDays).toFixed(1)} <span className="text-sm text-slate-300 ml-1">PCS/D</span></p>
+                                        </div>
+                                    </div>
+
+                                    {/* Daily Projection Flow */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                            <div className="w-1 h-3 bg-brand rounded-full"></div> 物理层投影数据流
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                            {forecastResult.forecast.map((item, idx) => (
+                                                <div key={item.date} className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm hover:border-brand transition-all group/item">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-[10px] font-black text-slate-400 uppercase">{item.date}</span>
+                                                        <span className="text-[9px] font-black text-brand bg-brand/5 px-2 py-0.5 rounded uppercase">D+{idx+1}</span>
+                                                    </div>
+                                                    <p className="text-xl font-black text-slate-800 tabular-nums">{item.predicted_sales}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* AI Insight Room Card */}
+                                    <div className="bg-[#020617] rounded-[40px] p-10 text-white relative overflow-hidden group/ai">
+                                        <div className="absolute top-0 right-0 w-80 h-80 bg-brand/10 rounded-full blur-[100px] -translate-y-1/3 translate-x-1/3"></div>
+                                        <div className="flex items-center gap-4 mb-8 relative z-10">
+                                            <div className="w-12 h-12 rounded-2xl bg-brand flex items-center justify-center shadow-lg border border-white/10 group-hover/ai:rotate-6 transition-transform">
+                                                <Bot size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-black tracking-tight flex items-center gap-2">AI 算法深度诊断 <Sparkles size={14} className="text-brand animate-pulse" /></h3>
+                                                <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Neural Forecasting Insight</p>
+                                            </div>
+                                        </div>
+                                        <div className="relative z-10 bg-white/5 rounded-[24px] p-8 border border-white/10">
+                                            <p className="text-sm font-bold leading-relaxed mb-4 text-slate-100">{forecastResult.summary}</p>
+                                            <p className="text-xs text-slate-400 font-medium italic leading-relaxed">{forecastResult.analysis}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-slate-300 opacity-60">
+                                    <BarChartHorizontalBig size={80} className="mb-8 opacity-10" />
+                                    <p className="font-black text-sm uppercase tracking-[0.3em] italic">Awaiting Target Selection</p>
+                                    <p className="text-[10px] mt-4 font-bold max-w-sm text-center leading-relaxed">在左侧搜索指定 SKU 并设定预测参数，<br/>算法决策引擎将为您生成未来时空的销量投影。</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-10 pt-8 border-t border-slate-50 text-center shrink-0">
+                             <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.3em]">Decision Intelligence Powered by Gemini 3.0 Experimental Core</p>
+                        </div>
                     </div>
                 </div>
             </div>
