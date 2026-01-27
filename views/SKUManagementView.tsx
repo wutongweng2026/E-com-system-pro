@@ -1,8 +1,7 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-/* Add missing lucide-react imports: ShieldAlert, CheckSquare, Square */
-import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown, LoaderCircle, CheckCircle2, AlertCircle, Store, ChevronLeft, ChevronRight, Search, ToggleLeft, ToggleRight, Box, Filter, LayoutGrid, Sparkles, ShieldAlert, CheckSquare, Square } from 'lucide-react';
+import { Package, Database, Plus, Download, UploadCloud, Edit2, ChevronDown, User, X, Trash2, List, ChevronsUpDown, LoaderCircle, CheckCircle2, AlertCircle, Store, ChevronLeft, ChevronRight, Search, ToggleLeft, ToggleRight, Box, Filter, LayoutGrid, Sparkles, ShieldAlert, CheckSquare, Square, BarChart2 } from 'lucide-react';
 import { ProductSubView, Shop, ProductSKU, CustomerServiceAgent, SKUMode, SKUStatus, SKUAdvertisingStatus, SkuList } from '../lib/types';
 import { parseExcelFile } from '../lib/excel';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -27,7 +26,6 @@ const ImportProgressModal = ({ isOpen, progress, status, errorReport }: { isOpen
 
                     {errorReport && errorReport.length > 0 && (
                         <div className="mt-8 w-full text-left">
-                            {/* ShieldAlert is now imported */}
                             <p className="text-[10px] font-black text-rose-500 uppercase mb-3 flex items-center gap-2"><ShieldAlert size={12}/> 物理层冲突报告 ({errorReport.length})</p>
                             <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4 max-h-32 overflow-y-auto no-scrollbar">
                                 {errorReport.map((err, i) => <p key={i} className="text-[10px] text-rose-700 font-bold mb-1.5 opacity-80">• {err}</p>)}
@@ -48,6 +46,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
     const [brand, setBrand] = useState('');
     const [category, setCategory] = useState('');
     const [model, setModel] = useState('');
+    const [subModel, setSubModel] = useState(''); // 新增小型号
     const [mtm, setMtm] = useState('');
     const [configuration, setConfiguration] = useState('');
     const [mode, setMode] = useState<SKUMode>('入仓');
@@ -71,6 +70,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
             setBrand(initialData.brand || '');
             setCategory(initialData.category || '');
             setModel(initialData.model || '');
+            setSubModel(initialData.subModel || '');
             setMtm(initialData.mtm || '');
             setConfiguration(initialData.configuration || '');
             setMode(initialData.mode || '入仓');
@@ -101,6 +101,7 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
             brand: brand.trim(),
             category: category.trim(),
             model: model.trim(),
+            subModel: subModel.trim(),
             mtm: mtm.trim(),
             configuration: configuration.trim(),
             mode,
@@ -153,15 +154,23 @@ const SKUFormModal = ({ isOpen, onClose, onConfirm, skuToEdit, shops, addToast, 
                             <input type="text" value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">型号 / Series</label>
-                            <input type="text" value={model} onChange={e => setModel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
+                            <input type="text" value={model} onChange={e => setModel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">详细配置 / Specs</label>
-                            <input type="text" value={configuration} onChange={e => setConfiguration(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">小型号</label>
+                            <input type="text" value={subModel} onChange={e => setSubModel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">MTM</label>
+                            <input type="text" value={mtm} onChange={e => setMtm(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">详细配置 / Specs</label>
+                        <input type="text" value={configuration} onChange={e => setConfiguration(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                     </div>
                     <div className="grid grid-cols-4 gap-4">
                          <PriceInput label="成本价" value={costPrice} onChange={setCostPrice} />
@@ -324,7 +333,6 @@ const AgentFormModal = ({ isOpen, onClose, onConfirm, agentToEdit, shops, title,
                             {shops.map((shop:Shop) => (
                                 <label key={shop.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-white transition-all cursor-pointer group">
                                     <input type="checkbox" checked={selectedShopIds.includes(shop.id)} onChange={() => handleShopSelection(shop.id)} className="hidden" />
-                                    {/* CheckSquare and Square are now imported */}
                                     {selectedShopIds.includes(shop.id) ? <CheckSquare size={16} className="text-brand" /> : <Square size={16} className="text-slate-300 group-hover:text-slate-400" />}
                                     <span className="text-xs font-bold text-slate-700">{shop.name}</span>
                                 </label>
@@ -528,7 +536,7 @@ export const SKUManagementView = ({
     };
 
     const handleDownloadTemplate = (type: 'sku' | 'shop' | 'agent') => {
-        let headers = type === 'sku' ? ['SKU编码 (code)', '商品名称 (name)', '店铺名称 (shopName)', '品牌 (brand)', '类目 (category)', '型号 (model)', 'MTM (mtm)', '配置 (configuration)', '成本价 (costPrice)', '前台价 (sellingPrice)', '促销价 (promoPrice)', '京东点位% (jdCommission)', '入仓库存 (warehouseStock)', '厂直库存 (factoryStock)', '模式 (mode)', '状态 (status)', '广告 (advertisingStatus)', '统计 (isStatisticsEnabled)']
+        let headers = type === 'sku' ? ['SKU编码 (code)', '商品名称 (name)', '店铺名称 (shopName)', '品牌 (brand)', '类目 (category)', '型号 (model)', '小型号 (subModel)', 'MTM (mtm)', '配置 (configuration)', '成本价 (costPrice)', '前台价 (sellingPrice)', '促销价 (promoPrice)', '京东点位% (jdCommission)', '入仓库存 (warehouseStock)', '厂直库存 (factoryStock)', '模式 (mode)', '状态 (status)', '广告 (advertisingStatus)', '统计 (isStatisticsEnabled)']
                     : type === 'shop' ? ['店铺名称 (name)', '店铺ID (platformId)', '经营模式 (mode)']
                     : ['姓名 (name)', '客服账号 (account)', '关联店铺 (shopNames)'];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -556,7 +564,7 @@ export const SKUManagementView = ({
                          const shopId = shopMap.get(shopName);
                          if (!shopId) { errors.push(`行 ${i + 2}: 未找到匹配店铺 [${shopName}]`); return null; }
                          success++;
-                         return { code: String(row['SKU编码 (code)'] || row['SKU编码'] || ''), name: String(row['商品名称 (name)'] || row['商品名称'] || ''), shopId, brand: String(row['品牌 (brand)'] || row['品牌'] || ''), category: String(row['类目 (category)'] || row['类目'] || ''), model: String(row['型号 (model)'] || row['型号'] || ''), mtm: String(row['MTM (mtm)'] || row['MTM'] || ''), configuration: String(row['配置 (configuration)'] || row['配置'] || ''), costPrice: parseFloat(row['成本价 (costPrice)'] || row['成本价'] || '0'), sellingPrice: parseFloat(row['前台价 (sellingPrice)'] || row['前台价'] || '0'), promoPrice: parseFloat(row['促销价 (promoPrice)'] || row['促销价'] || '0'), jdCommission: parseFloat(row['京东点位% (jdCommission)'] || row['京东点位%'] || '0'), warehouseStock: parseInt(row['入仓库存 (warehouseStock)'] || row['入仓库存'] || '0'), factoryStock: parseInt(row['厂直库存 (factoryStock)'] || row['厂直库存'] || '0'), mode: (row['模式 (mode)'] || row['模式'] || '入仓') as SKUMode, status: (row['状态 (status)'] || row['状态'] || '在售') as SKUStatus, advertisingStatus: (row['广告 (advertisingStatus)'] || row['广告'] || '未投') as SKUAdvertisingStatus, isStatisticsEnabled: String(row['统计 (isStatisticsEnabled)'] || row['统计'] || 'true').includes('true') };
+                         return { code: String(row['SKU编码 (code)'] || row['SKU编码'] || ''), name: String(row['商品名称 (name)'] || row['商品名称'] || ''), shopId, brand: String(row['品牌 (brand)'] || row['品牌'] || ''), category: String(row['类目 (category)'] || row['类目'] || ''), model: String(row['型号 (model)'] || row['型号'] || ''), subModel: String(row['小型号 (subModel)'] || row['小型号'] || ''), mtm: String(row['MTM (mtm)'] || row['MTM'] || ''), configuration: String(row['配置 (configuration)'] || row['配置'] || ''), costPrice: parseFloat(row['成本价 (costPrice)'] || row['成本价'] || '0'), sellingPrice: parseFloat(row['前台价 (sellingPrice)'] || row['前台价'] || '0'), promoPrice: parseFloat(row['促销价 (promoPrice)'] || row['促销价'] || '0'), jdCommission: parseFloat(row['京东点位% (jdCommission)'] || row['京东点位%'] || '0'), warehouseStock: parseInt(row['入仓库存 (warehouseStock)'] || row['入仓库存'] || '0'), factoryStock: parseInt(row['厂直库存 (factoryStock)'] || row['厂直库存'] || '0'), mode: (row['模式 (mode)'] || row['模式'] || '入仓') as SKUMode, status: (row['状态 (status)'] || row['状态'] || '在售') as SKUStatus, advertisingStatus: (row['广告 (advertisingStatus)'] || row['广告'] || '未投') as SKUAdvertisingStatus, isStatisticsEnabled: String(row['统计 (isStatisticsEnabled)'] || row['统计'] || 'true').includes('true') };
                     }).filter(Boolean);
                     setImportModal(p => ({...p, progress: 70, status: '正在注入本地数据库...', errors}));
                     await onBulkAddSKUs(processed as any);
@@ -592,8 +600,8 @@ export const SKUManagementView = ({
         let headers: string[] = [], data: any[][] = [], fn = ''; const d = new Date().toISOString().split('T')[0];
         if (type === 'sku') {
             const sm = new Map(shops.map(s => [s.id, s.name]));
-            headers = ['SKU编码', '商品名称', '店铺名称', '品牌', '类目', '型号', 'MTM', '配置', '成本价', '前台价', '促销价', '京东点位%', '入仓库存', '厂直库存', '模式', '状态', '广告', '统计'];
-            data = sortedAndFilteredSkus.map(s => [s.code, s.name, sm.get(s.shopId) || '未知', s.brand, s.category, s.model, s.mtm, s.configuration, s.costPrice, s.sellingPrice, s.promoPrice, s.jdCommission, s.warehouseStock, s.factoryStock, s.mode, s.status, s.advertisingStatus, s.isStatisticsEnabled ? '是' : '否']);
+            headers = ['SKU编码', '商品名称', '店铺名称', '品牌', '类目', '型号', '小型号', 'MTM', '配置', '成本价', '前台价', '促销价', '京东点位%', '入仓库存', '厂直库存', '模式', '状态', '广告', '统计'];
+            data = sortedAndFilteredSkus.map(s => [s.code, s.name, sm.get(s.shopId) || '未知', s.brand, s.category, s.model, s.subModel, s.mtm, s.configuration, s.costPrice, s.sellingPrice, s.promoPrice, s.jdCommission, s.warehouseStock, s.factoryStock, s.mode, s.status, s.advertisingStatus, s.isStatisticsEnabled ? '是' : '否']);
             fn = `SKU_Assets_${d}.xlsx`;
         } else if (type === 'shop') {
              headers = ['店铺名称', '店铺ID', '经营模式'];
@@ -634,11 +642,11 @@ export const SKUManagementView = ({
                         <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
                         <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层资产链路已建立</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">{activeTab === 'sku' ? 'SKU 资产治理中心' : activeTab === 'shop' ? '核心店铺名录' : activeTab === 'agent' ? '客服席位管控' : '分层清单实验室'}</h1>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">{activeTab === 'sku' ? 'SKU资产' : activeTab === 'shop' ? '核心店铺名录' : activeTab === 'agent' ? '客服席位管控' : '分层清单实验室'}</h1>
                     <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Master Data Management & Assets Governance Hub</p>
                 </div>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
-                    {[ {id:'sku',l:'SKU 资产'}, {id:'shop',l:'店铺名录'}, {id:'agent',l:'客服席位'}, {id:'list',l:'分层清单'} ].map(t => (
+                    {[ {id:'sku',l:'SKU资产'}, {id:'shop',l:'店铺名录'}, {id:'agent',l:'客服席位'}, {id:'list',l:'分层清单'} ].map(t => (
                         <button key={t.id} onClick={() => setActiveTab(t.id as ProductSubView)} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === t.id ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}>{t.l}</button>
                     ))}
                 </div>
@@ -691,28 +699,29 @@ export const SKUManagementView = ({
 
                         {/* High-Density Table */}
                         <div className="overflow-x-auto rounded-[40px] border border-slate-100 no-scrollbar shadow-inner bg-white">
-                            <table className="w-full text-sm table-fixed min-w-[1300px]">
+                            <table className="w-full text-sm table-fixed min-w-[1500px]">
                                 <thead className="bg-slate-50 sticky top-0 z-10">
                                     <tr className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] border-b border-slate-100">
-                                        <th className="w-[18%] text-left pl-10 py-6">SKU 物理标识</th>
-                                        <th className="w-[12%] text-center">分类 / 品牌</th>
-                                        <th className="w-[20%] text-center">规格配置 / 型号</th>
+                                        <th className="w-[15%] text-left pl-10 py-6">SKU 物理标识</th>
+                                        <th className="w-[10%] text-center">分类 / 品牌</th>
+                                        <th className="w-[18%] text-center">规格配置 / 型号</th>
+                                        <th className="w-[12%] text-center">MTM / 小型号</th>
                                         <th className="w-[10%] text-right pr-6">结算 / 标价 / 促</th>
                                         <th className="w-[8%] text-center">点位 / 模式</th>
-                                        <th className="w-[14%] text-center">全渠道物理库存</th>
-                                        <th className="w-[10%] text-center">运营权重</th>
-                                        <th className="w-[8%] text-center pr-10">审计</th>
+                                        <th className="w-[12%] text-center">全渠道物理库存</th>
+                                        <th className="w-[8%] text-center">运营权重</th>
+                                        <th className="w-[6%] text-center">统计</th>
+                                        <th className="w-[7%] text-center pr-10">审计</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
                                     {paginatedSkus.length === 0 ? (
-                                        <tr><td colSpan={8} className="py-40 text-center opacity-30 italic font-black uppercase tracking-widest text-slate-300">No Asset Data Detected</td></tr>
+                                        <tr><td colSpan={10} className="py-40 text-center opacity-30 italic font-black uppercase tracking-widest text-slate-300">No Asset Data Detected</td></tr>
                                     ) : (
                                         paginatedSkus.map(s => (
                                             <tr key={s.id} className="hover:bg-slate-50/50 transition-all group/row">
                                                 <td className="py-6 pl-10">
                                                     <div className="font-black text-slate-900 text-sm truncate" title={s.code}>{s.code}</div>
-                                                    {/* shopIdToName is now defined in useMemo */}
                                                     <div className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-tighter opacity-60 flex items-center gap-2"><Store size={10}/> {shopIdToName.get(s.shopId) || '未知'}</div>
                                                 </td>
                                                 <td className="text-center">
@@ -722,6 +731,10 @@ export const SKUManagementView = ({
                                                 <td className="text-center px-4">
                                                     <div className="text-slate-800 font-bold text-xs truncate" title={s.model}>{s.model || '-'}</div>
                                                     <div className="text-[10px] text-slate-400 font-medium truncate italic" title={s.configuration}>{s.configuration || '-'}</div>
+                                                </td>
+                                                <td className="text-center">
+                                                    <div className="text-slate-700 font-black text-[11px]">{s.mtm || '-'}</div>
+                                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{s.subModel || '-'}</div>
                                                 </td>
                                                 <td className="text-right pr-6 font-mono text-[11px] leading-relaxed">
                                                     <div className="text-orange-500 font-black">¥{(s.costPrice||0).toLocaleString()}</div>
@@ -745,6 +758,16 @@ export const SKUManagementView = ({
                                                         <StatusBadge status={s.status} />
                                                         <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${s.advertisingStatus==='在投'?'bg-blue-50 text-blue-600 border border-blue-100':'bg-slate-100 text-slate-400'}`}>{s.advertisingStatus}</div>
                                                     </div>
+                                                </td>
+                                                <td className="text-center">
+                                                     <div className="flex flex-col items-center gap-1">
+                                                         {s.isStatisticsEnabled ? (
+                                                             <CheckCircle2 size={16} className="text-brand" />
+                                                         ) : (
+                                                             <BarChart2 size={16} className="text-slate-200" />
+                                                         )}
+                                                         <span className={`text-[8px] font-black uppercase ${s.isStatisticsEnabled ? 'text-brand' : 'text-slate-300'}`}>{s.isStatisticsEnabled ? '统计中' : '忽略'}</span>
+                                                     </div>
                                                 </td>
                                                 <td className="text-center pr-10">
                                                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">

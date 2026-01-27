@@ -39,6 +39,7 @@ export interface ProductSKU {
   brand: string;
   category: string;
   model?: string;
+  subModel?: string; // 新增：小型号
   mtm?: string;
   configuration?: string;
   mode?: SKUMode;
