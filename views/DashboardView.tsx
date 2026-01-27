@@ -233,23 +233,28 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 currJzt.forEach(r => { const c = getSkuIdentifier(r); if(c) skuCostMap.set(c, (skuCostMap.get(c) || 0) + (Number(r.cost) || 0)); });
 
                 const knownSkuCodes = new Set(skus.map(s => s.code));
+                
+                // 物理层新增资产逻辑（增量探测）：
+                // 1. SKU 属于当前选定周期（如 1.26 导入的数据中包含）
+                // 2. 且该 SKU 在资产库中从未登记
+                // 3. 且该 SKU 在上一相邻周期（如 1.25）的物理表中也完全不存在
                 const currActiveCodes = new Set(currSz.map(r => getSkuIdentifier(r)).filter(Boolean));
                 const prevActiveCodes = new Set(prevSz.map(r => getSkuIdentifier(r)).filter(Boolean));
                 
                 currActiveCodes.forEach(code => {
                     if (code && !knownSkuCodes.has(code) && !prevActiveCodes.has(code)) {
                         const physRow = currSz.find(r => getSkuIdentifier(r) === code);
-                        const physName = physRow?.product_name || '物理商品名未知';
-                        const physShop = physRow?.shop_name || '物理店铺名未知';
+                        const physName = physRow?.product_name || '物理表商品名未知';
+                        const physShop = physRow?.shop_name || '物理表店铺名未知';
 
                         newDiagnoses.push({ 
                             id: `asset-${code}`, 
                             type: 'asset', 
                             severity: 'critical', 
-                            title: '新发现未映射资产', 
-                            desc: `检测到物理层新增活跃 SKU，但资产库未登记归属。`, 
+                            title: '物理层新增资产预警', 
+                            desc: `探测到物理表出现全新活跃 SKU，但资产库未登记。`, 
                             skuInfo: `SKU [${code}] · ${physShop} · ${physName}`, 
-                            details: { '建议': '前往资产名录补录' } 
+                            details: { '发现时间': start, '建议': '前往资产名录补录以对齐统计' } 
                         });
                     }
                 });
@@ -268,7 +273,7 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 const getRichSkuStr = (code: string) => {
                     const sku = skus.find(s => s.code === code);
                     if (!sku) return `SKU [${code}]`;
-                    const shopName = shopIdToName.get(sku.shopId) || '未知店';
+                    const shopName = shopIdToName.get(sku.shopId) || '未知店铺';
                     return `SKU [${code}] · ${shopName} · ${sku.model || '未注型号'} · ${sku.configuration || '标准配置'}`;
                 };
 
@@ -485,7 +490,7 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
     const containerRef = useRef<HTMLDivElement>(null);
     const width = 800; const height = 300; const padding = { top: 30, right: 30, bottom: 50, left: 30 };
     
-    // Y轴最大值逻辑：取自营与POP中的最大值，而非合计值，确保两条线对比更明显
+    // 动态缩放逻辑：确保自营与POP的高度差异被精准体现
     const maxVal = Math.max(...data.map(d => Math.max(d.self, d.pop)), 0.1) * 1.2;
     
     const getX = (i: number) => padding.left + (i / (data.length - 1)) * (width - padding.left - padding.right);
@@ -508,12 +513,11 @@ const TrendVisual: React.FC<{ data: DailyRecord[]; isFloat?: boolean }> = ({ dat
                     <linearGradient id="gPop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4"/><stop offset="100%" stopColor="#3B82F6" stopOpacity="0"/></linearGradient>
                 </defs>
                 
-                {/* 自营区域（绿色） */}
+                {/* 阴影填充层 */}
                 <path d={generateAreaPath(data.map(d => d.self))} fill="url(#gSelf)" className="transition-all duration-500" />
-                {/* POP区域（蓝色） */}
                 <path d={generateAreaPath(data.map(d => d.pop))} fill="url(#gPop)" className="transition-all duration-500" />
                 
-                {/* 曲线描边 */}
+                {/* 曲线边框层 */}
                 <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.self)}`).join(' L ')}`} fill="none" stroke="#70AD47" strokeWidth="3" strokeLinecap="round" className="transition-all duration-500" />
                 <path d={`M ${data.map((d,i) => `${getX(i)},${getY(d.pop)}`).join(' L ')}`} fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" className="transition-all duration-500" />
                 
@@ -587,7 +591,7 @@ const KPICard = ({ title, value, prefix = "", isFloat = false, icon, isHigherBet
                     </div>
                 </div>
                 <div className="border-l border-slate-200 pl-4 min-w-0">
-                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 font-sans">POP店铺</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 font-sans">POP 店铺</p>
                     <div className="flex items-center gap-1.5 min-w-0">
                         <p className="text-[11px] font-black text-slate-700 tabular-nums truncate">{prefix}{formatVal(value.pop.current)}</p>
                         {!isLoading && renderChangeBadge(popChange)}
