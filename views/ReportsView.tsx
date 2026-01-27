@@ -1,6 +1,9 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Calendar, Bot, FileText, Printer, Download, LoaderCircle, ChevronDown, List, ChevronsUpDown, Edit2, Trash2, X, Plus, Store, CheckSquare, Square, Sparkles, DatabaseZap, Search, Filter } from 'lucide-react';
+// Guideline: Always use direct SDK for Gemini calls
+import { GoogleGenAI } from "@google/genai";
 import { SkuList, ProductSKU, Shop } from '../lib/types';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { getSkuIdentifier } from '../lib/helpers';
@@ -400,25 +403,20 @@ export const ReportsView = ({ factTables, skus, shops, skuLists, onAddNewSkuList
             const summary = data.map(s => `店铺:${s.shopName}, GMV:${s.sales.gmv.current}, 环比:${((s.sales.gmv.current - s.sales.gmv.previous)/s.sales.gmv.previous*100).toFixed(2)}%, ROI:${s.advertising.roi.current.toFixed(2)}`).join('; ');
             const prompt = `你是一名电商运营总监，这是最新的[${title}]报表数据摘要：${summary}。请根据这些核心指标，提供一段简明扼要的运营综述。要求：1. 指出表现最好和最差的店铺或环节；2. 分析ROI异动的潜在原因；3. 给出3条具体的下一步行动建议。语气要专业、直接且有洞察力。字数控制在300字以内。`;
 
-            // 使用项目内部接口以确保环境变量读取的稳定性
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'gemini-3-flash-preview',
-                    contents: { parts: [{ text: prompt }] }
-                })
+            // Guideline: Initialize SDK right before call
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Guideline: Use direct SDK instead of proxy
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
             });
             
-            if (!response.ok) throw new Error("API Route Failed");
-            
-            const resData = await response.json();
-            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || resData.text;
-            
-            setAiCommentary(text || "AI分析生成失败。");
-        } catch (e) {
+            // Guideline: Extract text output using .text property
+            setAiCommentary(response.text || "AI分析生成失败。");
+        } catch (e: any) {
             console.error("AI Fetch Error:", e);
-            setAiCommentary("无法连接AI服务进行诊断分析。请检查您的网络连接或确认 API_KEY 已在本地环境变量中正确配置。");
+            setAiCommentary(`无法连接AI服务进行诊断分析: ${e.message}`);
         } finally {
             setIsAiLoading(false);
         }

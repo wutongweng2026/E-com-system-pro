@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CloudSync, Download, UploadCloud, ShieldCheck, AlertCircle, RefreshCw, Database, Settings2, Code2, Copy, CheckCircle2, Activity, Terminal, Loader2 } from 'lucide-react';
 import { DB } from '../lib/db';
@@ -92,10 +93,10 @@ export const CloudSyncView = ({ addToast }: any) => {
                 totalRowsToSync += data.length;
             }
 
-            // 同步 app_config 中的所有维度（SKU、店铺、竞品组、补货配置等）
+            // 同步 app_config 中的所有维度
             const configData = await DB.getAllConfigs();
             const configEntries = Object.entries(configData)
-                .filter(([key]) => key !== 'cloud_sync_config')
+                .filter(([key]) => !['cloud_sync_config', 'dim_viki_kb', 'dim_quoting_library'].includes(key))
                 .map(([key, data]) => ({ key, data }));
             
             totalRowsToSync += configEntries.length;
@@ -130,9 +131,9 @@ export const CloudSyncView = ({ addToast }: any) => {
                 }
             }
 
-            // 2. 同步战略配置（补货策略、竞品组、SKU 资产等 1:1 同步）
+            // 2. 同步战略配置项
             if (configEntries.length > 0) {
-                setSyncStatus('同步战略配置项(补货/竞品/报价)...');
+                setSyncStatus('同步战略配置项...');
                 const { error: configError } = await supabase.from('app_config').upsert(configEntries, { onConflict: 'key' });
                 if (configError) throw configError;
                 processedRows += configEntries.length;
@@ -143,7 +144,7 @@ export const CloudSyncView = ({ addToast }: any) => {
             setLastSync(now);
             setSyncStatus('云端链路已对齐');
             await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: now, autoSync });
-            addToast('success', '全量同步成功', `已在云端物理层还原 ${totalRowsToSync} 条经营资产。`);
+            addToast('success', '全量同步成功', `已在云端还原 ${totalRowsToSync} 条经营资产。`);
         } catch (e: any) {
             console.error(e);
             setSyncStatus(`同步中断: ${e.message}`);
@@ -159,7 +160,7 @@ export const CloudSyncView = ({ addToast }: any) => {
         try {
             const supabase = createClient(supabaseUrl, supabaseKey);
             
-            // 拉取配置项（这是核心：包含您的补货设置、竞品监控组等）
+            // 拉取配置项
             const { data: configs, error: configError } = await supabase.from('app_config').select('*');
             if (configError) throw configError;
             if (configs) {
@@ -187,16 +188,35 @@ export const CloudSyncView = ({ addToast }: any) => {
     };
 
     const sqlScript = `-- 云舟 E-com System 完整物理层初始化脚本
--- 必须在 Supabase SQL Editor 中执行一次，否则 API 无法写入
+-- 必须在 Supabase SQL Editor 中执行一次
 
--- 1. 核心战略配置表 (SKU资产、补货策略、竞品组)
+-- 1. 核心战略配置表
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
   data JSONB,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. 商智销售明细表
+-- 2. VIKI 云端共享知识库
+CREATE TABLE IF NOT EXISTS dim_viki_kb (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  category TEXT,
+  usage_count INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. 智能报价共享配件库
+CREATE TABLE IF NOT EXISTS dim_quoting_library (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  model TEXT NOT NULL,
+  price NUMERIC NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. 商智销售明细表
 CREATE TABLE IF NOT EXISTS fact_shangzhi (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -217,7 +237,7 @@ CREATE TABLE IF NOT EXISTS fact_shangzhi (
   UNIQUE(date, sku_code)
 );
 
--- 3. 京准通广告明细表
+-- 5. 京准通广告明细表
 CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -231,7 +251,7 @@ CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
   UNIQUE(date, tracked_sku_id, account_nickname)
 );
 
--- 4. 客服统计明细表
+-- 6. 客服统计明细表
 CREATE TABLE IF NOT EXISTS fact_customer_service (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -241,8 +261,10 @@ CREATE TABLE IF NOT EXISTS fact_customer_service (
   UNIQUE(date, agent_account)
 );
 
--- 权限开放（用于简易同步，若需生产环境请自行配置 RLS）
+-- 权限开放
 ALTER TABLE app_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dim_viki_kb DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dim_quoting_library DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_shangzhi DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_jingzhuntong DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_customer_service DISABLE ROW LEVEL SECURITY;
@@ -330,6 +352,7 @@ NOTIFY pgrst, 'reload schema';`;
                             <h3 className="text-4xl font-black text-slate-900 tracking-tight">异地同步引擎</h3>
                             <p className="text-slate-500 text-sm font-bold leading-relaxed max-w-xl">
                                 点击推送将本地所有“经营数据”与“补货/竞品策略”保存至云端；在 PyCharm 或另一台电脑点击拉取即可瞬间恢复。
+                                <br/><span className="text-brand">注：VIKI 知识库与报价配件库现已实现实时云端存储，无需手动同步。</span>
                             </p>
                             
                             {isProcessing && (
@@ -350,10 +373,10 @@ NOTIFY pgrst, 'reload schema';`;
                             <div className="flex flex-wrap gap-4 pt-4">
                                 <button onClick={handleCloudPush} disabled={isProcessing} className="px-10 py-5 rounded-[20px] bg-[#70AD47] text-white font-black text-sm flex items-center gap-3 hover:bg-[#5da035] shadow-2xl shadow-[#70AD47]/30 active:scale-95 disabled:bg-slate-200 transition-all uppercase tracking-widest">
                                     {isProcessing ? <RefreshCw className="animate-spin" size={20} /> : <UploadCloud size={20} />}
-                                    执行全量推送 (Push)
+                                    同步经营流水 (Push)
                                 </button>
                                 <button onClick={handleCloudPull} disabled={isProcessing} className="px-10 py-5 rounded-[20px] bg-white text-slate-600 border border-slate-200 font-black text-sm flex items-center gap-3 hover:bg-slate-50 transition-all active:scale-95 uppercase tracking-widest">
-                                    从云端拉取 (Pull)
+                                    从云端恢复镜像 (Pull)
                                 </button>
                             </div>
                         </div>

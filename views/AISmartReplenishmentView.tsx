@@ -1,5 +1,8 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { PackagePlus, AlertTriangle, ChevronsRight, X, Warehouse, Truck, Bot, Sparkles, LoaderCircle, Store, LayoutDashboard, ChevronLeft, ChevronRight, PieChart, TrendingUp, Filter, CheckSquare, Square, ChevronDown, Search } from 'lucide-react';
+// Guideline: Always use direct SDK for Gemini calls
+import { GoogleGenAI } from "@google/genai";
 import { ProductSKU, Shop } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
 
@@ -249,20 +252,20 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             3.提供2条优化库存周转率的战略建议。
             专业、果断，200字以内。`;
 
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'gemini-3-flash-preview',
-                    contents: { parts: [{ text: prompt }] }
-                })
+            // Guideline: Initialize SDK right before call
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Guideline: Call generateContent directly on ai.models
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt
             });
             
-            const resData = await response.json();
-            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || resData.text;
+            // Guideline: Use .text property for extraction
+            const text = response.text;
             setAiInsight(text || "AI 供应链审计报告生成失败。");
-        } catch (e) {
-            setAiInsight("无法连接 AI 服务。请检查网络或 API_KEY 配置。");
+        } catch (e: any) {
+            setAiInsight(`无法连接 AI 服务: ${e.message}`);
         } finally {
             setIsAiLoading(false);
         }

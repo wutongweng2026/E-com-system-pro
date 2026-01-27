@@ -66,6 +66,15 @@ export interface SkuList {
   skuCodes: string[];
 }
 
+// VIKI Knowledge Base Types
+export interface KnowledgeBaseItem {
+  id: string;
+  question: string;
+  answer: string;
+  category?: string;
+  usageCount?: number;
+}
+
 export interface UploadHistory {
   id: string;
   fileName: string;

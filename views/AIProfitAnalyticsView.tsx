@@ -1,5 +1,8 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { DollarSign, Bot, LoaderCircle, AlertCircle, ChevronsUpDown, ChevronDown, Store, PieChart, LayoutDashboard, TrendingUp, ChevronLeft, ChevronRight, Sparkles, Filter, CheckSquare, Square, Search } from 'lucide-react';
+// Guideline: Always use direct SDK for Gemini calls
+import { GoogleGenAI } from "@google/genai";
 import { DB } from '../lib/db';
 import { getSkuIdentifier } from '../lib/helpers';
 import { ProductSKU, Shop } from '../lib/types';
@@ -237,22 +240,20 @@ export const AIProfitAnalyticsView = ({ skus, shops, addToast }: { skus: Product
             3. 提供3条具备实操性的下一步改进建议。
             语气专业且直接，250字以内。`;
             
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'gemini-3-flash-preview',
-                    contents: { parts: [{ text: prompt }] }
-                })
+            // Guideline: Initialize SDK right before call
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Guideline: Call generateContent directly on ai.models
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
             });
             
-            if (!response.ok) throw new Error("API Route Failed");
-            
-            const resData = await response.json();
-            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || resData.text;
+            // Guideline: Extract text output using .text property
+            const text = response.text;
             setAiInsight(text || "AI分析生成失败。");
-        } catch (err) {
-            setAiInsight("无法连接AI服务进行盈利审计。请检查 API_KEY 配置。");
+        } catch (err: any) {
+            setAiInsight(`无法连接AI服务进行盈利审计: ${err.message}`);
         } finally {
             setIsAiLoading(false);
         }

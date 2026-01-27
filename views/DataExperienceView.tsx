@@ -1,39 +1,50 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { Eye, Settings, Database, RotateCcw, Plus, FileText, Download, Trash2, Edit2, X, Search, Filter, Zap, AlertCircle, Calendar, Store, CheckSquare, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, LoaderCircle } from 'lucide-react';
+import { Eye, Settings, Database, RotateCcw, Plus, FileText, Download, Trash2, Edit2, X, Search, Filter, Zap, AlertCircle, Calendar, Store, CheckSquare, Square, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, LoaderCircle, Sparkles, Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
 import { DataExpSubView, TableType, FieldDefinition, Shop } from '../lib/types';
 import { getTableName, getSkuIdentifier } from '../lib/helpers';
 import { INITIAL_SHANGZHI_SCHEMA, INITIAL_JINGZHUNTONG_SCHEMA, INITIAL_CUSTOMER_SERVICE_SCHEMA } from '../lib/schemas';
 import { ConfirmModal } from '../components/ConfirmModal';
 
+// 进度弹窗 - 指挥中心风格
 const ProgressModal = ({ isOpen, current, total }: { isOpen: boolean, current: number, total: number }) => {
     if (!isOpen) return null;
     const percent = Math.floor((current / total) * 100);
 
     return (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-md p-10 text-center animate-fadeIn">
-                <div className="relative w-24 h-24 mx-auto mb-8">
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-md p-12 text-center animate-fadeIn border border-slate-200">
+                <div className="relative w-24 h-24 mx-auto mb-10">
                     <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-                    <div 
-                        className="absolute inset-0 border-4 border-[#70AD47] rounded-full transition-all duration-500" 
-                        style={{ clipPath: `inset(0 0 0 0)`, transform: `rotate(${percent * 3.6}deg)` }}
-                    ></div>
+                    <svg className="absolute inset-0 transform -rotate-90 w-24 h-24">
+                        <circle
+                            cx="48"
+                            cy="48"
+                            r="44"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="transparent"
+                            className="text-brand"
+                            strokeDasharray={276}
+                            strokeDashoffset={276 - (276 * percent) / 100}
+                            strokeLinecap="round"
+                        />
+                    </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <LoaderCircle className="animate-spin text-[#70AD47]" size={40} />
+                        <LoaderCircle className="animate-spin text-brand" size={32} />
                     </div>
                 </div>
-                <h3 className="text-xl font-black text-slate-800 mb-2">正在执行物理空间清理</h3>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-8">正在永久移除选定记录...</p>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">执行物理层空间清理</h3>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-10">Atomic Erasure in Progress</p>
                 
-                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
-                    <div className="bg-[#70AD47] h-full transition-all duration-300" style={{ width: `${percent}%` }}></div>
+                <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-4 p-0.5 shadow-inner">
+                    <div className="bg-brand h-full rounded-full transition-all duration-300 shadow-[0_0_15px_rgba(112,173,71,0.5)]" style={{ width: `${percent}%` }}></div>
                 </div>
                 
-                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase">
-                    <span>进度: {percent}%</span>
-                    <span>{current.toLocaleString()} / {total.toLocaleString()} 行</span>
+                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <span>Progress: {percent}%</span>
+                    <span>{current.toLocaleString()} / {total.toLocaleString()} Rows</span>
                 </div>
             </div>
         </div>
@@ -47,9 +58,7 @@ const AddFieldModal = ({ isOpen, onClose, onConfirm, existingKeys }: { isOpen: b
 
     useEffect(() => {
         if (isOpen) {
-            setLabel('');
-            setKey('');
-            setError('');
+            setLabel(''); setKey(''); setError('');
         }
     }, [isOpen]);
     
@@ -62,73 +71,36 @@ const AddFieldModal = ({ isOpen, onClose, onConfirm, existingKeys }: { isOpen: b
 
     const handleConfirm = () => {
         setError('');
-        if (!label.trim() || !key.trim()) {
-            setError('字段名称和ID均不可为空。');
-            return;
-        }
-        if (!/^[a-z0-9_]+$/.test(key)) {
-            setError('字段ID只能包含小写字母、数字和下划线。');
-            return;
-        }
-        if (existingKeys.includes(key)) {
-            setError(`字段ID [${key}] 已存在。`);
-            return;
-        }
-        
-        const newField: FieldDefinition = {
-            key,
-            label,
-            type: 'STRING',
-            required: false,
-            tags: [label]
-        };
-        onConfirm(newField);
+        if (!label.trim() || !key.trim()) { setError('字段名称和物理键名均不可为空。'); return; }
+        if (!/^[a-z0-9_]+$/.test(key)) { setError('键名仅支持小写字母与下划线。'); return; }
+        if (existingKeys.includes(key)) { setError(`物理键名 [${key}] 已锁定。`); return; }
+        onConfirm({ key, label, type: 'STRING', required: false, tags: [label] });
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-slate-800">添加新字段</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                    </button>
+        <div className="fixed inset-0 bg-navy/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md p-12 border border-slate-200" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-10 border-b border-slate-50 pb-6">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">新增物理映射</h3>
+                    <button onClick={onClose} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><X size={20}/></button>
                 </div>
-                <div className="space-y-6">
-                    <div>
-                        <label htmlFor="field-label" className="block text-sm font-bold text-slate-600 mb-2">字段名称 (Label)</label>
-                        <input 
-                            id="field-label"
-                            type="text"
-                            value={label}
-                            onChange={handleLabelChange}
-                            placeholder="例如：优惠券金额"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#70AD47] focus:ring-2 focus:ring-[#70AD47]/20"
-                        />
+                <div className="space-y-8">
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">字段显示名称 (Label)</label>
+                        <input type="text" value={label} onChange={handleLabelChange} placeholder="例如：优惠券金额" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                     </div>
-                    <div>
-                        <label htmlFor="field-key" className="block text-sm font-bold text-slate-600 mb-2">字段ID (Key)</label>
-                        <input 
-                            id="field-key"
-                            type="text"
-                            value={key}
-                            onChange={(e) => setKey(e.target.value)}
-                            placeholder="例如：custom_coupon_amount"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800 font-mono outline-none focus:border-[#70AD47] focus:ring-2 focus:ring-[#70AD47]/20"
-                        />
-                         <p className="text-xs text-slate-400 mt-2">只能使用小写字母、数字和下划线。创建后不可更改。</p>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">物理层键名 (Key)</label>
+                        <input type="text" value={key} onChange={(e) => setKey(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-mono font-black text-brand outline-none focus:border-brand shadow-inner" />
+                         <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest leading-relaxed">System Key: Read-only after synchronization starts.</p>
                     </div>
                 </div>
-                {error && <p className="text-xs text-rose-500 mt-4 bg-rose-50 p-3 rounded-lg">{error}</p>}
-                <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100">
-                    <button onClick={onClose} className="px-6 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
-                        取消
-                    </button>
-                    <button onClick={handleConfirm} className="px-6 py-2.5 rounded-lg bg-[#70AD47] text-white font-bold text-sm hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all active:scale-95">
-                        确认添加
-                    </button>
+                {error && <p className="text-xs text-rose-500 mt-6 bg-rose-50 p-4 rounded-xl border border-rose-100 font-bold">{error}</p>}
+                <div className="flex justify-end gap-4 mt-12 pt-8 border-t border-slate-50">
+                    <button onClick={onClose} className="flex-1 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs uppercase">取消</button>
+                    <button onClick={handleConfirm} className="flex-[2] py-4 rounded-2xl bg-brand text-white font-black text-xs shadow-2xl shadow-brand/20 transition-all active:scale-95 uppercase tracking-widest">确认新增映射</button>
                 </div>
             </div>
         </div>
@@ -149,58 +121,34 @@ const EditFieldModal = ({ isOpen, onClose, onConfirm, field }: { isOpen: boolean
     if (!isOpen || !field) return null;
 
     const handleConfirm = () => {
-        const updatedField: FieldDefinition = {
-            ...field,
-            label: label.trim(),
-            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-        };
-        onConfirm(updatedField);
+        onConfirm({ ...field, label: label.trim(), tags: tags.split(',').map(t => t.trim()).filter(Boolean) });
     };
 
     return (
-        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4 animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 m-4">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-slate-800">编辑字段</h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                    </button>
+        <div className="fixed inset-0 bg-navy/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 animate-fadeIn" onClick={onClose}>
+            <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md p-12 border border-slate-200" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-10 border-b border-slate-50 pb-6">
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">修订物理映射</h3>
+                    <button onClick={onClose} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><X size={20}/></button>
                 </div>
-                <div className="space-y-6">
-                     <div>
-                        <label className="block text-sm font-bold text-slate-600 mb-2">字段ID (Key)</label>
-                        <p className="w-full bg-slate-100 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-500 font-mono">{field.key}</p>
+                <div className="space-y-8">
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">物理层键名</label>
+                        <p className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-6 py-4 text-sm text-slate-400 font-mono font-bold shadow-inner">{field.key}</p>
                      </div>
-                     <div>
-                        <label htmlFor="field-label-edit" className="block text-sm font-bold text-slate-600 mb-2">字段名称 (Label)</label>
-                        <input 
-                            id="field-label-edit"
-                            type="text"
-                            value={label}
-                            onChange={(e) => setLabel(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#70AD47] focus:ring-2 focus:ring-[#70AD47]/20"
-                        />
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">展示名称</label>
+                        <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-800 outline-none focus:border-brand shadow-inner" />
                     </div>
-                    <div>
-                        <label htmlFor="field-tags-edit" className="block text-sm font-bold text-slate-600 mb-2">字段别名 (Tags)</label>
-                         <input 
-                            id="field-tags-edit"
-                            type="text"
-                            value={tags}
-                            onChange={(e) => setTags(e.target.value)}
-                            placeholder="例如：别名1, 别名2"
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-800 outline-none focus:border-[#70AD47] focus:ring-2 focus:ring-[#70AD47]/20"
-                        />
-                         <p className="text-xs text-slate-400 mt-2">多个别名请用英文逗号 "," 分隔。</p>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">识别特征码 (Tags)</label>
+                         <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="别名1, 别名2" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 outline-none focus:border-brand shadow-inner" />
+                         <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-widest">Multiple aliases separated by comma.</p>
                     </div>
                 </div>
-                <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-slate-100">
-                    <button onClick={onClose} className="px-6 py-2.5 rounded-lg border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition-colors">
-                        取消
-                    </button>
-                    <button onClick={handleConfirm} className="px-6 py-2.5 rounded-lg bg-[#70AD47] text-white font-bold text-sm hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all active:scale-95">
-                        保存更改
-                    </button>
+                <div className="flex justify-end gap-4 mt-12 pt-8 border-t border-slate-50">
+                    <button onClick={onClose} className="flex-1 py-4 rounded-2xl border border-slate-200 text-slate-500 font-black text-xs uppercase">取消</button>
+                    <button onClick={handleConfirm} className="flex-[2] py-4 rounded-2xl bg-brand text-white font-black text-xs shadow-2xl shadow-brand/20 transition-all uppercase tracking-widest">保存物理修订</button>
                 </div>
             </div>
         </div>
@@ -210,19 +158,10 @@ const EditFieldModal = ({ isOpen, onClose, onConfirm, field }: { isOpen: boolean
 const formatDateForDisplay = (dateValue: any): string => {
     if (!dateValue) return '-';
     const dateStr = String(dateValue);
-    if (dateStr.length >= 10) {
-        return dateStr.substring(0, 10);
-    }
-    return dateStr;
+    return dateStr.length >= 10 ? dateStr.substring(0, 10) : dateStr;
 };
 
-interface FilterCriteria {
-    tableType: TableType;
-    sku: string;
-    shop: string;
-    start: string;
-    end: string;
-}
+interface FilterCriteria { tableType: TableType; sku: string; shop: string; start: string; end: string; }
 
 export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema, onClearTable, onDeleteRows, onRefreshData, addToast }: any) => {
     const [activeTab, setActiveTab] = useState<DataExpSubView>('preview');
@@ -243,25 +182,17 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
     
     // 实际应用的筛选条件
     const [appliedFilters, setAppliedFilters] = useState<FilterCriteria | null>(null);
-    
-    // 分页状态
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 50;
-    
-    // 选择状态
     const [selectedRowIds, setSelectedRowIds] = useState<Set<any>>(new Set());
 
     const currentSchema = schemas[selectedSchemaType] || [];
-    
-    // 处理动态表头显示
     const displaySchema = useMemo(() => {
         const type = appliedFilters?.tableType || tableTypeSearch;
         const schema = schemas[type] || [];
         if (type === 'customer_service') {
             const dateField = schema.find((f:any) => f.key === 'date');
-            if (dateField) {
-                return [dateField, ...schema.filter((f:any) => f.key !== 'date')];
-            }
+            return dateField ? [dateField, ...schema.filter((f:any) => f.key !== 'date')] : schema;
         }
         return schema;
     }, [appliedFilters, tableTypeSearch, schemas]);
@@ -273,44 +204,17 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
         const { tableType, sku, shop, start, end } = appliedFilters;
         const tableData = factTables[tableType] || [];
         const directoryShopNames = new Set(shops.map((s: Shop) => s.name));
-
-        // 解析多值 SKU
         const searchTerms = sku.split(/[\n,，\s]+/).map(s => s.trim()).filter(Boolean);
 
         return tableData.filter((row: any) => {
-            // SKU 筛选 (SKU, 商品ID, 跟单SKU ID)
             const rowSku = String(getSkuIdentifier(row) || '');
             const rowProdId = String(row.product_id || '');
             const rowTrackedId = String(row.tracked_sku_id || '');
-            
-            let skuMatch = searchTerms.length === 0;
-            if (!skuMatch) {
-                // 如果输入了 SKU，任意一个检索项匹配到其中一个字段即可
-                skuMatch = searchTerms.some(term => 
-                    rowSku.includes(term) || 
-                    rowProdId.includes(term) || 
-                    rowTrackedId.includes(term)
-                );
-            }
-            
-            // 店铺筛选
+            let skuMatch = searchTerms.length === 0 || searchTerms.some(term => rowSku.includes(term) || rowProdId.includes(term) || rowTrackedId.includes(term));
             const rowShop = row.shop_name || '';
-            let shopMatch = true;
-            if (shop === "__EMPTY__") {
-                // 专门搜索未绑定店铺的记录
-                shopMatch = !rowShop || rowShop.trim() === '';
-            } else if (shop === "__OTHER__") {
-                // 逻辑：有店名，但不在名录中
-                shopMatch = rowShop && rowShop.trim() !== '' && !directoryShopNames.has(rowShop);
-            } else if (shop) {
-                shopMatch = rowShop === shop;
-            }
-            
-            // 日期筛选
+            let shopMatch = shop === "__EMPTY__" ? (!rowShop || rowShop.trim() === '') : shop === "__OTHER__" ? (rowShop && rowShop.trim() !== '' && !directoryShopNames.has(rowShop)) : (!shop || rowShop === shop);
             const rowDate = row.date || '';
-            const dateMatch = (!start || rowDate >= start) && 
-                              (!end || rowDate <= end);
-            
+            const dateMatch = (!start || rowDate >= start) && (!end || rowDate <= end);
             return skuMatch && shopMatch && dateMatch;
         });
     }, [appliedFilters, factTables, shops]);
@@ -321,414 +225,266 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
     }, [filteredData, currentPage]);
 
     const totalPages = Math.ceil(filteredData.length / PAGE_SIZE);
-
     const handleExecuteSearch = () => {
         setAppliedFilters({ tableType: tableTypeSearch, sku: skuSearch, shop: shopSearch, start: startDate, end: endDate });
-        setCurrentPage(1);
-        setSelectedRowIds(new Set());
+        setCurrentPage(1); setSelectedRowIds(new Set());
     };
 
-    const handleSelectAll = () => {
-        if (selectedRowIds.size === filteredData.length && filteredData.length > 0) {
-            setSelectedRowIds(new Set());
-        } else {
-            setSelectedRowIds(new Set(filteredData.map(r => r.id)));
-        }
-    };
-
+    const handleSelectAll = () => setSelectedRowIds(selectedRowIds.size === filteredData.length && filteredData.length > 0 ? new Set() : new Set(filteredData.map(r => r.id)));
     const handleSelectRow = (id: any) => {
         const next = new Set(selectedRowIds);
         if (next.has(id)) next.delete(id); else next.add(id);
         setSelectedRowIds(next);
     };
 
-    const handleResetSchema = () => {
-        setIsResetModalOpen(true);
-    };
-
     const handleConfirmResetSchema = () => {
-        let initialSchema;
-        if (selectedSchemaType === 'shangzhi') initialSchema = INITIAL_SHANGZHI_SCHEMA;
-        else if (selectedSchemaType === 'jingzhuntong') initialSchema = INITIAL_JINGZHUNTONG_SCHEMA;
-        else initialSchema = INITIAL_CUSTOMER_SERVICE_SCHEMA;
-        
-        onUpdateSchema(selectedSchemaType, initialSchema);
-        addToast('success', '重置成功', `[${getTableName(selectedSchemaType)}] 表结构已恢复为默认值。`);
+        const initial = { shangzhi: INITIAL_SHANGZHI_SCHEMA, jingzhuntong: INITIAL_JINGZHUNTONG_SCHEMA, customer_service: INITIAL_CUSTOMER_SERVICE_SCHEMA }[selectedSchemaType];
+        onUpdateSchema(selectedSchemaType, initial);
+        addToast('success', '重置成功', `[${getTableName(selectedSchemaType)}] 物理映射已对齐。`);
         setIsResetModalOpen(false);
     };
 
-    const handleConfirmAddField = (newField: FieldDefinition) => {
-        onUpdateSchema(selectedSchemaType, [...currentSchema, newField]);
-        addToast('success', '添加成功', `已添加新字段 [${newField.label}]。`);
-        setIsAddFieldModalOpen(false);
-    };
-
+    /**
+     * Fix: Add missing handleOpenEditModal function to set editingField state.
+     * This was causing a ReferenceError at line 334.
+     */
     const handleOpenEditModal = (field: FieldDefinition) => {
         setEditingField(field);
-    };
-
-    const handleConfirmEditField = (updatedField: FieldDefinition) => {
-        const newSchema = currentSchema.map(f => f.key === updatedField.key ? updatedField : f);
-        onUpdateSchema(selectedSchemaType, newSchema);
-        addToast('success', '更新成功', `字段 [${updatedField.label}] 已更新。`);
-        setEditingField(null);
-    };
-
-    const handleDeleteData = () => {
-        setIsClearModalOpen(true);
-    };
-
-    const handleConfirmClearData = () => {
-        onClearTable(appliedFilters?.tableType || tableTypeSearch);
-        setIsClearModalOpen(false);
-        setSelectedRowIds(new Set());
-        setAppliedFilters(null);
     };
 
     const handleConfirmDeleteSelected = async () => {
         if (!appliedFilters) return;
         const allIdsToDelete = Array.from(selectedRowIds);
         const total = allIdsToDelete.length;
-        
         setIsDeleteSelectedModalOpen(false);
         setDeleteProgress({ current: 0, total });
-
-        // 分片删除逻辑，防止海量删除时 UI 卡死
         const CHUNK_SIZE = 5000;
         try {
             for (let i = 0; i < total; i += CHUNK_SIZE) {
                 const chunk = allIdsToDelete.slice(i, i + CHUNK_SIZE);
                 await onDeleteRows(appliedFilters.tableType, chunk);
                 setDeleteProgress({ current: Math.min(i + CHUNK_SIZE, total), total });
-                // 给主线程留出渲染进度条的时间
-                await new Promise(resolve => setTimeout(resolve, 50));
+                await new Promise(r => setTimeout(r, 50));
             }
-            
-            // 全部删除完成后，触发一次全量重载
             await onRefreshData();
-            addToast('success', '物理删除完成', `已成功从物理库中永久移除 ${total} 条数据空间。`);
-        } catch (e) {
-            addToast('error', '删除异常', '物理层写入失败，请检查数据库连接。');
-        } finally {
-            setSelectedRowIds(new Set());
-            setDeleteProgress(null);
-        }
-    };
-
-    const resetFilters = () => {
-        setSkuSearch('');
-        setShopSearch('');
-        setStartDate('');
-        setEndDate('');
-        setTableTypeSearch('shangzhi');
-        setAppliedFilters(null);
-        setCurrentPage(1);
-        setSelectedRowIds(new Set());
+            addToast('success', '物理空间已释放', `已成功擦除 ${total} 条数据记录。`);
+        } catch (e) { addToast('error', '物理删除失败', '数据库写入指令中断。'); }
+        finally { setSelectedRowIds(new Set()); setDeleteProgress(null); }
     };
 
     return (
-        <>
+        <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
             <ProgressModal isOpen={!!deleteProgress} current={deleteProgress?.current || 0} total={deleteProgress?.total || 0} />
             
-            <ConfirmModal
-                isOpen={isClearModalOpen}
-                title="确认清空物理表"
-                onConfirm={handleConfirmClearData}
-                onCancel={() => setIsClearModalOpen(false)}
-                confirmText="确认清空"
-                confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20"
-            >
-                <p>您确定要清空 <strong className="font-black text-slate-800">[{getTableName(appliedFilters?.tableType || tableTypeSearch)}]</strong> 表的所有物理记录吗？</p>
-                <p className="mt-2 text-rose-500 font-bold">此操作将移除全量历史导入数据，不可恢复。</p>
+            <ConfirmModal isOpen={isClearModalOpen} title="全量物理空间清空" onConfirm={() => { onClearTable(appliedFilters?.tableType || tableTypeSearch); setIsClearModalOpen(false); setSelectedRowIds(new Set()); setAppliedFilters(null); }} onCancel={() => setIsClearModalOpen(false)} confirmText="执行擦除" confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20">
+                <p>正在执行物理层移除指令：<strong className="font-black text-slate-900">[{getTableName(appliedFilters?.tableType || tableTypeSearch)}]</strong></p>
+                <p className="mt-2 text-rose-500 font-bold opacity-80">此操作将物理性抹除全量记录，无法撤销。确认继续？</p>
             </ConfirmModal>
 
-            <ConfirmModal
-                isOpen={isDeleteSelectedModalOpen}
-                title="批量删除物理数据"
-                onConfirm={handleConfirmDeleteSelected}
-                onCancel={() => setIsDeleteSelectedModalOpen(false)}
-                confirmText="立即删除"
-                confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20"
-            >
-                <p>您当前选择了 <strong className="font-black text-rose-600">{selectedRowIds.size.toLocaleString()}</strong> 条记录。</p>
-                <p className="mt-2 text-slate-600">删除操作将直接修改本地物理库，释放存储配额，且不可撤销。确认继续吗？</p>
+            <ConfirmModal isOpen={isDeleteSelectedModalOpen} title="批量物理记录注销" onConfirm={handleConfirmDeleteSelected} onCancel={() => setIsDeleteSelectedModalOpen(false)} confirmText="确认移除" confirmButtonClass="bg-rose-500 hover:bg-rose-600 shadow-rose-500/20">
+                <p>您已勾选 <strong className="font-black text-rose-600">{selectedRowIds.size.toLocaleString()}</strong> 条物理事实行。</p>
+                <p className="mt-2 text-slate-500 font-bold opacity-80">执行后，本地库对应空间将被回收。确认物理移除？</p>
             </ConfirmModal>
 
-            <ConfirmModal
-                isOpen={isResetModalOpen}
-                title="确认重置表结构"
-                onConfirm={handleConfirmResetSchema}
-                onCancel={() => setIsResetModalOpen(false)}
-                confirmText="确认重置"
-                confirmButtonClass="bg-orange-500 hover:bg-orange-600 shadow-orange-500/20"
-            >
-                <p>您确定要将 <strong className="font-black text-slate-800">[{getTableName(selectedSchemaType)}]</strong> 的表结构重置为默认设置吗？</p>
-                <p className="mt-2 text-orange-500 font-bold">此操作会覆盖您所有自定义的字段修改。</p>
+            <ConfirmModal isOpen={isResetModalOpen} title="重置物理映射架构" onConfirm={handleConfirmResetSchema} onCancel={() => setIsResetModalOpen(false)} confirmText="执行重置" confirmButtonClass="bg-orange-500 hover:bg-orange-600 shadow-orange-500/20">
+                <p>确认将 <strong className="font-black text-slate-900">[{getTableName(selectedSchemaType)}]</strong> 的映射架构恢复至原始出厂状态？</p>
+                <p className="mt-2 text-orange-500 font-bold opacity-80">此操作会重置所有自定义映射字段。</p>
             </ConfirmModal>
 
-            <AddFieldModal 
-                isOpen={isAddFieldModalOpen}
-                onClose={() => setIsAddFieldModalOpen(false)}
-                onConfirm={handleConfirmAddField}
-                existingKeys={currentSchema.map(f => f.key)}
-            />
-            <EditFieldModal 
-                isOpen={!!editingField}
-                onClose={() => setEditingField(null)}
-                onConfirm={handleConfirmEditField}
-                field={editingField}
-            />
+            <AddFieldModal isOpen={isAddFieldModalOpen} onClose={() => setIsAddFieldModalOpen(false)} onConfirm={(f) => { onUpdateSchema(selectedSchemaType, [...currentSchema, f]); addToast('success', '映射成功', `[${f.label}] 已加入物理层映射。`); setIsAddFieldModalOpen(false); }} existingKeys={currentSchema.map(f => f.key)} />
+            <EditFieldModal isOpen={!!editingField} onClose={() => setEditingField(null)} onConfirm={(f) => { onUpdateSchema(selectedSchemaType, currentSchema.map(x => x.key === f.key ? f : x)); addToast('success', '修订成功', `映射 [${f.label}] 已更新。`); setEditingField(null); }} field={editingField} />
 
-            <div className="p-8 md:p-10 w-full animate-fadeIn space-y-8">
-                {/* Header - Standardized */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                            <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层数据治理中</span>
-                        </div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">数据体验中心</h1>
-                        <p className="text-slate-500 font-medium text-xs mt-1 italic">Physical Data Governance & Metadata Management</p>
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 border-b border-slate-200 pb-10">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层治理模式已激活</span>
                     </div>
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">底层数据治理中心</h1>
+                    <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Data Cleansing & Meta-Architecture Management</p>
                 </div>
+                <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
+                    <button onClick={() => setActiveTab('preview')} className={`px-10 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'preview' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}><Eye size={14}/> 数据物理清洗</button>
+                    <button onClick={() => setActiveTab('schema')} className={`px-10 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'schema' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}><Settings size={14}/> 物理架构映射</button>
+                </div>
+            </div>
 
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[700px] flex flex-col">
-                    <div className="flex items-center gap-6 px-8 pt-6 border-b border-slate-100/50">
-                        <button 
-                            onClick={() => setActiveTab('preview')}
-                            className={`pb-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'preview' ? 'border-[#70AD47] text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <Eye size={16} /> 数据清洗管理
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('schema')}
-                            className={`pb-4 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'schema' ? 'border-[#70AD47] text-slate-800' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-                        >
-                            <Settings size={16} /> 表结构管理
-                        </button>
-                    </div>
-
-                    {activeTab === 'schema' && (
-                        <div className="p-8 bg-slate-50/30 flex-1">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                                <div className="space-y-1 min-w-[300px]">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">选择目标管理表</label>
-                                    <div className="relative">
-                                        <select 
-                                            value={selectedSchemaType}
-                                            onChange={e => setSelectedSchemaType(e.target.value as TableType)}
-                                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-700 outline-none focus:border-[#70AD47] appearance-none shadow-sm"
-                                        >
-                                            <option value="shangzhi">商智明细 (fact_shangzhi)</option>
-                                            <option value="jingzhuntong">广告明细 (fact_jingzhuntong)</option>
-                                            <option value="customer_service">客服明细 (fact_customer_service)</option>
-                                        </select>
-                                        <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 self-end">
-                                    <button onClick={handleResetSchema} title="重置为默认结构" className="flex items-center gap-2 px-4 py-3 text-orange-600 hover:text-white hover:bg-orange-500 rounded-xl transition-all bg-white border border-slate-200 shadow-sm font-bold text-xs"><RotateCcw size={14} /> 重置结构</button>
-                                    <button onClick={() => setIsAddFieldModalOpen(true)} title="添加新字段" className="flex items-center gap-2 px-4 py-3 text-[#70AD47] hover:text-white hover:bg-[#70AD47] rounded-xl transition-all bg-white border border-slate-200 shadow-sm font-bold text-xs"><Plus size={14} /> 新增映射</button>
-                                    <button onClick={handleDeleteData} title="清空全量物理数据" className="flex items-center gap-2 px-4 py-3 text-rose-500 hover:text-white hover:bg-rose-500 rounded-xl transition-all bg-white border border-slate-200 shadow-sm font-bold text-xs"><Trash2 size={14} /> 清空数据</button>
+            {/* Main Content Container */}
+            <div className="bg-white rounded-[56px] shadow-sm border border-slate-100 p-12 relative overflow-hidden group min-h-[750px] flex flex-col">
+                <div className="absolute top-0 right-0 w-full h-full bg-[radial-gradient(circle_at_top_right,rgba(112,173,71,0.025),transparent_70%)] pointer-events-none"></div>
+                
+                {activeTab === 'schema' && (
+                    <div className="space-y-10 animate-fadeIn relative z-10 flex-1">
+                        <div className="bg-slate-50/50 rounded-[40px] p-10 border border-slate-100 shadow-inner flex flex-col md:flex-row md:items-end justify-between gap-6">
+                            <div className="space-y-4 min-w-[350px]">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2"><LayoutGrid size={14} className="text-brand"/> 目标事实表探测</label>
+                                <div className="relative">
+                                    <select value={selectedSchemaType} onChange={e => setSelectedSchemaType(e.target.value as TableType)} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-slate-700 outline-none focus:border-brand appearance-none shadow-sm">
+                                        <option value="shangzhi">商智核心事实表 (fact_shangzhi)</option>
+                                        <option value="jingzhuntong">广告投放事实表 (fact_jingzhuntong)</option>
+                                        <option value="customer_service">客服接待事实表 (fact_customer_service)</option>
+                                    </select>
+                                    <ChevronDown size={18} className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                 </div>
                             </div>
-
-                            <div className="space-y-4">
-                                {sortedSchema.map((field: FieldDefinition, idx: number) => (
-                                    <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-6 flex items-start justify-between shadow-sm hover:shadow-md transition-shadow group">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-3">
-                                                {field.required ? (
-                                                    <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded">核心字段</span>
-                                                ) : (
-                                                    <span className="bg-blue-50 text-blue-500 text-[10px] font-black px-2 py-0.5 rounded">扩展字段</span>
-                                                )}
-                                                <span className="font-bold text-slate-800 text-sm">{field.label}</span>
-                                                <span className="text-xs text-slate-300 font-mono">[{field.key}]</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {(field.tags || [field.label]).map((tag, tIdx) => (
-                                                    <span key={tIdx} className="inline-flex items-center gap-1 bg-[#70AD47]/10 text-[#70AD47] text-xs font-bold px-3 py-1.5 rounded-lg border border-[#70AD47]/20">
-                                                        <Zap size={10} className="fill-[#70AD47]" /> {tag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <button onClick={() => handleOpenEditModal(field)} className="text-slate-300 hover:text-[#70AD47] transition-colors p-2 opacity-0 group-hover:opacity-100">
-                                            <Edit2 size={16} />
-                                        </button>
-                                    </div>
-                                ))}
+                            <div className="flex gap-3">
+                                <button onClick={() => setIsResetModalOpen(true)} className="px-6 py-4 rounded-2xl bg-white border border-slate-200 text-orange-600 font-black text-[10px] hover:bg-orange-50 transition-all uppercase tracking-widest flex items-center gap-2 shadow-sm"><RotateCcw size={14}/> 重置架构</button>
+                                <button onClick={() => setIsAddFieldModalOpen(true)} className="px-10 py-4 rounded-2xl bg-brand text-white font-black text-xs hover:bg-[#5da035] shadow-2xl shadow-brand/20 transition-all flex items-center gap-3 uppercase tracking-widest active:scale-95"><Plus size={16}/> 新增字段映射</button>
                             </div>
                         </div>
-                    )}
 
-                    {activeTab === 'preview' && (
-                        <div className="flex-1 flex flex-col min-h-0">
-                            {/* 组合筛选区域 */}
-                            <div className="p-6 border-b border-slate-100 bg-slate-50/50 space-y-4">
-                                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                                    <div className="relative">
-                                        <Database size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                        <select 
-                                            value={tableTypeSearch}
-                                            onChange={e => setTableTypeSearch(e.target.value as TableType)}
-                                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47] appearance-none"
-                                        >
-                                            <option value="shangzhi">商智销售明细</option>
-                                            <option value="jingzhuntong">广告投放明细</option>
-                                            <option value="customer_service">客服接待明细</option>
-                                        </select>
-                                        <ChevronDown size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {sortedSchema.map((field: FieldDefinition, idx: number) => (
+                                <div key={idx} className="bg-white border border-slate-100 rounded-[32px] p-8 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group/card relative">
+                                    <div className="flex justify-between items-start mb-6">
+                                        {field.required ? <span className="bg-rose-50 text-rose-600 text-[8px] font-black px-2.5 py-1 rounded-lg border border-rose-100 uppercase tracking-widest">核心引擎字段</span> : <span className="bg-blue-50 text-blue-500 text-[8px] font-black px-2.5 py-1 rounded-lg border border-blue-100 uppercase tracking-widest">物理层扩展字段</span>}
+                                        <button onClick={() => handleOpenEditModal(field)} className="p-2 text-slate-300 hover:text-brand transition-colors opacity-0 group-hover/card:opacity-100"><Edit2 size={16}/></button>
                                     </div>
-                                    <div className="relative">
-                                        <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                        <input 
-                                            placeholder="SKU / 商品ID / 跟单SKU ID (多值用逗号隔开)" 
-                                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47]" 
-                                            value={skuSearch}
-                                            onChange={(e) => setSkuSearch(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleExecuteSearch()}
-                                        />
+                                    <div className="space-y-1 mb-6">
+                                        <h4 className="text-lg font-black text-slate-900 tracking-tight">{field.label}</h4>
+                                        <p className="text-[10px] text-slate-300 font-mono font-bold uppercase tracking-tighter">Key: {field.key}</p>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Calendar size={16} className="text-slate-400 shrink-0" />
-                                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="flex-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-[#70AD47]" />
-                                        <span className="text-slate-300">-</span>
-                                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="flex-1 px-2 py-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-[#70AD47]" />
+                                    <div className="flex flex-wrap gap-2">
+                                        {(field.tags || [field.label]).map((tag, tIdx) => (
+                                            <span key={tIdx} className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-400 text-[9px] font-black px-3 py-1.5 rounded-xl border border-slate-100 uppercase tracking-wider"><Zap size={10} className="fill-slate-200" /> {tag}</span>
+                                        ))}
                                     </div>
-                                    <div className="relative">
-                                        <Store size={16} className="absolute left-3 top-2.5 text-slate-400" />
-                                        <select 
-                                            value={shopSearch}
-                                            onChange={e => setShopSearch(e.target.value)}
-                                            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-[#70AD47] appearance-none"
-                                        >
-                                            <option value="">所有店铺数据</option>
-                                            <option value="__EMPTY__" className="text-rose-500 font-bold">无店铺名称 (待清洗)</option>
-                                            <option value="__OTHER__" className="text-amber-600 font-bold">其他的店铺 (非名录内)</option>
-                                            {shops.map((s:Shop) => <option key={s.id} value={s.name}>{s.name}</option>)}
-                                        </select>
-                                        <ChevronDown size={14} className="absolute right-3 top-2.5 text-slate-400 pointer-events-none" />
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={resetFilters} className="flex-1 flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors">
-                                            <RefreshCw size={14} /> 清空
-                                        </button>
-                                        <button onClick={handleExecuteSearch} className="flex-1 px-4 py-2 bg-[#70AD47] text-white rounded-lg text-xs font-bold hover:bg-[#5da035] shadow-lg shadow-[#70AD47]/20 transition-all active:scale-95">
-                                            立即检索
-                                        </button>
-                                    </div>
-                                 </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
-                                 <div className="flex items-center justify-between">
-                                     <div className="flex items-center gap-4">
-                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            {appliedFilters ? `物理源: ${getTableName(appliedFilters.tableType)} | 命中: ${filteredData.length.toLocaleString()} 行` : '请设定条件并检索物理表'}
-                                         </span>
-                                         {selectedRowIds.size > 0 && (
-                                             <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">已选择: {selectedRowIds.size.toLocaleString()} 行</span>
-                                         )}
-                                     </div>
-                                     <div className="flex gap-2">
-                                         {selectedRowIds.size > 0 && (
-                                             <button 
-                                                onClick={() => setIsDeleteSelectedModalOpen(true)}
-                                                className="flex items-center gap-2 px-6 py-2 bg-rose-500 text-white rounded-lg text-xs font-black hover:bg-rose-600 shadow-lg shadow-rose-500/20 transition-all active:scale-95"
-                                             >
-                                                 <Trash2 size={14} /> 批量物理删除
-                                             </button>
-                                         )}
-                                     </div>
-                                 </div>
+                {activeTab === 'preview' && (
+                    <div className="animate-fadeIn relative z-10 flex-1 flex flex-col space-y-10 min-h-0">
+                        {/* Tactical Filter Panel */}
+                        <div className="bg-slate-50/50 rounded-[40px] p-10 border border-slate-100 shadow-inner space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">物理源目标</label>
+                                    <div className="relative">
+                                        <select value={tableTypeSearch} onChange={e => setTableTypeSearch(e.target.value as TableType)} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-xs font-black text-slate-700 outline-none focus:border-brand appearance-none shadow-sm transition-all hover:bg-slate-50">
+                                            <option value="shangzhi">商智销售全量物理表</option>
+                                            <option value="jingzhuntong">广告投放全量物理表</option>
+                                            <option value="customer_service">客服接待流水物理表</option>
+                                        </select>
+                                        <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">资产/映射 ID 检索</label>
+                                    <div className="relative"><Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" /><input placeholder="SKU / PID (多值逗号分隔)" className="w-full pl-10 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:border-brand shadow-sm" value={skuSearch} onChange={(e) => setSkuSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleExecuteSearch()} /></div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">物理时间跨度</label>
+                                    <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-2 py-1.5 shadow-sm"><input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full bg-transparent border-none text-[9px] font-black text-slate-600 px-1 outline-none" /><span className="text-slate-300 font-black">/</span><input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full bg-transparent border-none text-[9px] font-black text-slate-600 px-1 outline-none" /></div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">资产归属/清洗状态</label>
+                                    <div className="relative">
+                                        <select value={shopSearch} onChange={e => setShopSearch(e.target.value)} className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-xs font-black text-slate-700 outline-none focus:border-brand appearance-none shadow-sm">
+                                            <option value="">所有物理记录</option>
+                                            <option value="__EMPTY__">🔴 无资产归属 (待清洗)</option>
+                                            <option value="__OTHER__">🟡 非监控内店铺 (其他商铺)</option>
+                                            {shops.map((s:Shop) => <option key={s.id} value={s.name}>🔵 {s.name}</option>)}
+                                        </select>
+                                        <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
                             </div>
+                            <div className="flex justify-between items-center pt-8 border-t border-slate-200/50">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-4 bg-brand/5 rounded-2xl border border-brand/10 flex items-center gap-3">
+                                        <Database size={18} className="text-brand" />
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                            {appliedFilters ? `命中数据物理事实行: ${filteredData.length.toLocaleString()}` : '请设定治理参数并执行穿透探测'}
+                                        </span>
+                                    </div>
+                                    {selectedRowIds.size > 0 && <div className="px-5 py-3.5 bg-rose-50 rounded-2xl border border-rose-100 flex items-center gap-3"><Trash2 size={14} className="text-rose-500"/><span className="text-[10px] font-black text-rose-600 uppercase tracking-widest">已锁定物理行: {selectedRowIds.size.toLocaleString()}</span></div>}
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => { setSkuSearch(''); setShopSearch(''); setStartDate(''); setEndDate(''); setTableTypeSearch('shangzhi'); setAppliedFilters(null); setCurrentPage(1); setSelectedRowIds(new Set()); }} className="px-8 py-4 rounded-[22px] bg-slate-100 text-slate-500 font-black text-xs hover:bg-slate-200 transition-all uppercase tracking-widest">重置</button>
+                                    <button onClick={handleExecuteSearch} className="px-12 py-4 rounded-[22px] bg-navy text-white font-black text-xs hover:bg-slate-800 shadow-xl shadow-navy/20 transition-all flex items-center gap-3 uppercase tracking-[0.2em] active:scale-95"><Filter size={16}/> 执行全链路探测</button>
+                                </div>
+                            </div>
+                        </div>
 
-                            {/* 数据表格 */}
-                            <div className="flex-1 overflow-auto no-scrollbar relative">
-                                <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0">
-                                    <thead className="bg-slate-50 sticky top-0 z-20 shadow-sm">
-                                        <tr>
-                                            <th className="px-6 py-4 border-b border-slate-200 w-12 bg-slate-50">
-                                                <button onClick={handleSelectAll} className="text-slate-400 hover:text-[#70AD47] transition-colors">
-                                                    {selectedRowIds.size === filteredData.length && filteredData.length > 0 ? <CheckSquare size={18} /> : <Square size={18} />}
+                        {/* High-Density Data Matrix */}
+                        <div className="flex-1 min-h-0 flex flex-col bg-white rounded-[40px] border border-slate-100 shadow-inner relative overflow-hidden group/table">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-brand/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                            <div className="flex-1 overflow-auto no-scrollbar relative z-10">
+                                <table className="w-full text-left text-[11px] whitespace-nowrap border-separate border-spacing-0 table-fixed">
+                                    <thead className="sticky top-0 z-20 shadow-sm">
+                                        <tr className="bg-slate-50/95 backdrop-blur-sm">
+                                            <th className="px-8 py-6 border-b border-slate-100 w-16 text-center">
+                                                <button onClick={handleSelectAll} className="text-slate-300 hover:text-brand transition-colors">
+                                                    {selectedRowIds.size === filteredData.length && filteredData.length > 0 ? <CheckSquare size={20} className="text-brand" /> : <Square size={20} />}
                                                 </button>
                                             </th>
                                             {displaySchema.map((f:FieldDefinition) => (
-                                                <th key={f.key} className="px-6 py-4 font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 bg-slate-50">{f.label}</th>
+                                                <th key={f.key} className="px-6 py-6 font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 min-w-[150px]">{f.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100">
+                                    <tbody className="divide-y divide-slate-50">
                                         {!appliedFilters ? (
-                                             <tr>
-                                                <td colSpan={displaySchema.length + 1} className="py-40 text-center">
-                                                    <div className="flex flex-col items-center justify-center text-slate-300">
-                                                        <Search size={64} className="mb-4 opacity-10" />
-                                                        <p className="font-black tracking-widest text-sm uppercase italic">请输入条件并检索物理记录</p>
-                                                        <p className="text-xs mt-2 font-bold opacity-60">数据仅在点击“立即检索”后从本地库提取</p>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                             <tr><td colSpan={displaySchema.length + 1} className="py-48 text-center text-slate-300 opacity-20 italic font-black uppercase tracking-[0.5em]">Command Awaiting Parameters</td></tr>
                                         ) : paginatedData.length > 0 ? (
                                             paginatedData.map((row: any, rIdx: number) => (
-                                                <tr key={row.id || rIdx} className={`hover:bg-slate-50 transition-colors ${selectedRowIds.has(row.id) ? 'bg-[#70AD47]/5' : ''}`}>
-                                                    <td className="px-6 py-3 border-b border-slate-50 w-12">
-                                                        <button onClick={() => handleSelectRow(row.id)} className={`${selectedRowIds.has(row.id) ? 'text-[#70AD47]' : 'text-slate-200'} hover:text-[#70AD47] transition-colors`}>
-                                                            {selectedRowIds.has(row.id) ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                <tr key={row.id || rIdx} className={`hover:bg-slate-50/50 transition-all group/row ${selectedRowIds.has(row.id) ? 'bg-brand/5' : ''}`}>
+                                                    <td className="px-8 py-4 border-b border-slate-50 text-center">
+                                                        <button onClick={() => handleSelectRow(row.id)} className={`${selectedRowIds.has(row.id) ? 'text-brand' : 'text-slate-200'} hover:text-brand transition-colors`}>
+                                                            {selectedRowIds.has(row.id) ? <CheckSquare size={20} /> : <Square size={20} />}
                                                         </button>
                                                     </td>
                                                     {displaySchema.map((f:FieldDefinition) => (
-                                                        <td key={f.key} className={`px-6 py-3 border-b border-slate-50 ${f.key === 'sku_code' || f.key === 'product_id' || f.key === 'tracked_sku_id' ? 'font-mono font-bold text-slate-800' : 'text-slate-600'}`}>
-                                                            {f.key === 'date' ? formatDateForDisplay(row[f.key]) : (row[f.key] ?? '-')}
+                                                        <td key={f.key} className={`px-6 py-4 border-b border-slate-50 truncate ${f.key === 'sku_code' || f.key === 'product_id' || f.key === 'tracked_sku_id' ? 'font-mono font-black text-slate-800 text-xs' : 'text-slate-500 font-bold text-[10px]'}`}>
+                                                            {f.key === 'date' ? <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-black">{formatDateForDisplay(row[f.key])}</span> : (row[f.key] ?? '-')}
                                                         </td>
                                                     ))}
                                                 </tr>
                                             ))
                                         ) : (
-                                            <tr>
-                                                <td colSpan={displaySchema.length + 1} className="py-40 text-center">
-                                                    <div className="flex flex-col items-center justify-center text-slate-300">
-                                                        <Database size={64} className="mb-4 opacity-10" />
-                                                        <p className="font-black tracking-widest text-sm uppercase italic">没有匹配的物理记录</p>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                            <tr><td colSpan={displaySchema.length + 1} className="py-48 text-center text-slate-300 opacity-20 italic font-black uppercase tracking-[0.5em]">No Atomic Records Found</td></tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
                             
-                            {/* 分页控制 */}
-                            {appliedFilters && filteredData.length > 0 && (
-                                <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
+                            {/* Pagination & Global Actions */}
+                            <div className="p-8 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between shrink-0 relative z-10">
+                                <div className="flex items-center gap-6">
                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                         展示 {(currentPage-1)*PAGE_SIZE + 1} - {Math.min(currentPage*PAGE_SIZE, filteredData.length)} / 共 {filteredData.length.toLocaleString()} 行
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <button 
-                                            disabled={currentPage === 1}
-                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                            className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-                                        >
-                                            <ChevronLeft size={16} />
+                                    {selectedRowIds.size > 0 && (
+                                        <button onClick={() => setIsDeleteSelectedModalOpen(true)} className="px-6 py-2.5 bg-rose-500 text-white rounded-xl text-[10px] font-black hover:bg-rose-600 shadow-xl shadow-rose-500/20 transition-all active:scale-95 uppercase tracking-widest flex items-center gap-2 animate-slideIn">
+                                            <Trash2 size={14}/> 物理擦除已选记录
                                         </button>
-                                        <div className="text-xs font-black text-slate-600 px-4">
-                                            第 {currentPage} / {totalPages} 页
-                                        </div>
-                                        <button 
-                                            disabled={currentPage === totalPages}
-                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                            className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-30 hover:bg-slate-50 transition-colors"
-                                        >
-                                            <ChevronRight size={16} />
-                                        </button>
-                                    </div>
+                                    )}
                                 </div>
-                            )}
+                                {appliedFilters && filteredData.length > 0 && (
+                                    <div className="flex items-center gap-4">
+                                        <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))} className="p-3 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all shadow-sm"><ChevronLeft size={16} /></button>
+                                        <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest px-4 bg-white border border-slate-200 py-3 rounded-2xl shadow-sm">Page {currentPage} / {totalPages}</div>
+                                        <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} className="p-3 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all shadow-sm"><ChevronRight size={16} /></button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
-        </>
+
+            {/* Professional Footer Label */}
+            <div className="flex items-center justify-between opacity-40 grayscale group hover:grayscale-0 transition-all px-12">
+                 <div className="flex items-center gap-4">
+                     <Sparkles size={16} className="text-brand animate-pulse"/>
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em]">Physical Governance Studio v1.9.4</p>
+                 </div>
+                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Yunzhou Intelligence Strategic Subsystem</p>
+            </div>
+        </div>
     );
 };

@@ -1,5 +1,8 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { TrendingUp, Bot, ChevronDown, Sparkles, LoaderCircle, AlertCircle, CalendarDays, BarChartHorizontalBig, Search, Box, LayoutDashboard, Target, Activity, X } from 'lucide-react';
+// Guideline: Always use direct SDK for Gemini calls
+import { GoogleGenAI } from "@google/genai";
 import { DB } from '../lib/db';
 import { ProductSKU } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
@@ -92,20 +95,20 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
               "forecast": [{ "date": "YYYY-MM-DD", "predicted_sales": 数字 }]
             }`;
             
-            const response = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'gemini-3-flash-preview',
-                    contents: { parts: [{ text: prompt }] },
-                    config: { responseMimeType: "application/json" }
-                })
+            // Guideline: Initialize SDK right before usage
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
+            // Guideline: Call generateContent directly on ai.models
+            const response = await ai.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json"
+                }
             });
 
-            if (!response.ok) throw new Error("AI 预测服务连接失败");
-            
-            const resData = await response.json();
-            const resultJson = JSON.parse(resData.candidates?.[0]?.content?.parts?.[0]?.text || resData.text || "{}") as ForecastResult;
+            // Guideline: Extract text directly from .text property
+            const resultJson = JSON.parse(response.text || "{}") as ForecastResult;
             setForecastResult(resultJson);
         } catch (err: any) {
             setError(err.message || 'AI 预测引擎响应异常');
@@ -213,7 +216,7 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
                         <button 
                             onClick={handleGenerate} 
                             disabled={isLoading || !selectedSku}
-                            className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-2xl shadow-brand/20 hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30 uppercase tracking-widest"
+                            className="w-full py-5 rounded-[24px] bg-brand text-white font-black text-sm shadow-2xl shadow-brand/30 hover:bg-[#5da035] transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-30 uppercase tracking-widest"
                         >
                             {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <TrendingUp size={20} />}
                             执行高精度算法预测
