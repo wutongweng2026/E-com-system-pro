@@ -109,7 +109,7 @@ export const Sidebar = ({ currentView, setCurrentView, isSidebarCollapsed, setIs
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<Calculator size={18} />} label="智能报价" active={currentView === 'ai-quoting'} onClick={() => setCurrentView('ai-quoting')} />
 
                 <SectionLabel label="数字底座" collapsed={isSidebarCollapsed} />
-                <SidebarItem collapsed={isSidebarCollapsed} icon={<Package size={18} />} label="资产名录" active={currentView === 'products'} onClick={() => setCurrentView('products')} />
+                <SidebarItem collapsed={isSidebarCollapsed} icon={<Package size={18} />} label="SKU资产" active={currentView === 'products'} onClick={() => setCurrentView('products')} />
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<Layers size={18} />} label="底层治理" active={currentView === 'data-experience'} onClick={() => setCurrentView('data-experience')} />
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<CloudSync size={18} />} label="云端同步" active={currentView === 'cloud-sync'} onClick={() => setCurrentView('cloud-sync')} />
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<Database size={18} />} label="数据中心" active={currentView === 'data-center'} onClick={() => setCurrentView('data-center')} />
