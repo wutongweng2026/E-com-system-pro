@@ -21,7 +21,7 @@ import { AIAdImageView } from './views/AIAdImageView';
 import { SystemSnapshotView } from './views/SystemSnapshotView';
 import { AICompetitorMonitoringView } from './views/AICompetitorMonitoringView';
 
-import { View, TableType, ToastProps, Shop, ProductSKU, CustomerServiceAgent, UploadHistory, QuotingData, SkuList, SnapshotSettings } from './lib/types';
+import { View, TableType, ToastProps, Shop, ProductSKU, CustomerServiceAgent, UploadHistory, QuotingData, SkuList, SnapshotSettings, MonitoredCompetitorShop, CompetitorGroup } from './lib/types';
 import { DB } from './lib/db';
 import { INITIAL_SHANGZHI_SCHEMA, INITIAL_JINGZHUNTONG_SCHEMA, INITIAL_CUSTOMER_SERVICE_SCHEMA } from './lib/schemas';
 
@@ -50,6 +50,10 @@ export const App = () => {
     const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettings>({ autoSnapshotEnabled: true, retentionDays: 7 });
     const [factTables, setFactTables] = useState<any>({ shangzhi: [], jingzhuntong: [], customer_service: [] });
 
+    // Competitor Monitoring Data
+    const [compShops, setCompShops] = useState<MonitoredCompetitorShop[]>([]);
+    const [compGroups, setCompGroups] = useState<CompetitorGroup[]>([]);
+
     const addToast = (type: 'success' | 'error', title: string, message: string) => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, type, title, message }]);
@@ -58,7 +62,7 @@ export const App = () => {
 
     const loadMetadata = useCallback(async () => {
         try {
-            const [s_shops, s_skus, s_agents, s_skuLists, history, settings, q_data, s_sz, s_jzt, s_cs_schema] = await Promise.all([
+            const [s_shops, s_skus, s_agents, s_skuLists, history, settings, q_data, s_sz, s_jzt, s_cs_schema, s_compShops, s_compGroups] = await Promise.all([
                 DB.loadConfig('dim_shops', []),
                 DB.loadConfig('dim_skus', []),
                 DB.loadConfig('dim_agents', []),
@@ -68,7 +72,9 @@ export const App = () => {
                 DB.loadConfig('quoting_data', INITIAL_QUOTING_DATA),
                 DB.loadConfig('schema_shangzhi', INITIAL_SHANGZHI_SCHEMA),
                 DB.loadConfig('schema_jingzhuntong', INITIAL_JINGZHUNTONG_SCHEMA),
-                DB.loadConfig('schema_customer_service', INITIAL_CUSTOMER_SERVICE_SCHEMA)
+                DB.loadConfig('schema_customer_service', INITIAL_CUSTOMER_SERVICE_SCHEMA),
+                DB.loadConfig('comp_shops', []),
+                DB.loadConfig('comp_groups', [])
             ]);
             const [f_sz, f_jzt, f_cs] = await Promise.all([
                 DB.getRange('fact_shangzhi', '1970-01-01', '2099-12-31'),
@@ -79,6 +85,7 @@ export const App = () => {
             setUploadHistory(history); setSnapshotSettings(settings); setQuotingData(q_data);
             setSchemas({ shangzhi: s_sz, jingzhuntong: s_jzt, customer_service: s_cs_schema });
             setFactTables({ shangzhi: f_sz, jingzhuntong: f_jzt, customer_service: f_cs });
+            setCompShops(s_compShops); setCompGroups(s_compGroups);
         } catch (e) {}
     }, []);
 
@@ -192,6 +199,16 @@ export const App = () => {
             case 'ai-cs-assistant': return <AIAssistantView skus={skus} shops={shops} addToast={addToast} />;
             case 'ai-ad-image': return <AIAdImageView skus={skus} />;
             case 'system-snapshot': return <SystemSnapshotView snapshots={[]} settings={snapshotSettings} onUpdateSettings={async (s:any) => { setSnapshotSettings(s); await DB.saveConfig('snapshot_settings', s); }} onCreate={()=>{}} onRestore={()=>{}} onDelete={()=>{}} onImport={()=>{}} addToast={addToast} />;
+            case 'ai-competitor-monitoring': return (
+                <AICompetitorMonitoringView 
+                    compShops={compShops} 
+                    compGroups={compGroups} 
+                    shangzhiData={factTables.shangzhi}
+                    onUpdateCompShops={async (data) => { setCompShops(data); await DB.saveConfig('comp_shops', data); }}
+                    onUpdateCompGroups={async (data) => { setCompGroups(data); await DB.saveConfig('comp_groups', data); }}
+                    addToast={addToast} 
+                />
+            );
             default: return <DashboardView {...commonProps} />;
         }
     };

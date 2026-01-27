@@ -104,3 +104,32 @@ export interface Snapshot {
   size: number; // in bytes
   data: Record<string, any>;
 }
+
+// Competitor Monitoring Types
+export interface MonitoredCompetitorShop {
+  id: string;
+  name: string;
+  skuCodes: string[];
+}
+
+export interface CompetitorProductSpec {
+  sku: string;
+  name: string;
+  model: string;
+  listingDate: string;
+  price: number;
+  cpu?: string;
+  ram?: string;
+  ssd?: string;
+  psu?: string;
+  gpu?: string;
+  screen?: string;
+  size?: string;
+}
+
+export interface CompetitorGroup {
+  id: string;
+  name: string;
+  productA: CompetitorProductSpec;
+  productB: CompetitorProductSpec;
+}

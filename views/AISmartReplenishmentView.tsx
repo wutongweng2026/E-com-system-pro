@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { PackagePlus, AlertTriangle, ChevronsRight, X, Warehouse, Truck, Bot, Sparkles, LoaderCircle, Store, LayoutDashboard, ChevronLeft, ChevronRight, PieChart, TrendingUp, Filter, CheckSquare, Square, ChevronDown } from 'lucide-react';
+import { PackagePlus, AlertTriangle, ChevronsRight, X, Warehouse, Truck, Bot, Sparkles, LoaderCircle, Store, LayoutDashboard, ChevronLeft, ChevronRight, PieChart, TrendingUp, Filter, CheckSquare, Square, ChevronDown, Search } from 'lucide-react';
 import { ProductSKU, Shop } from '../lib/types';
 import { getSkuIdentifier } from '../lib/helpers';
 
@@ -103,6 +103,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
     const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
     const shopDropdownRef = useRef<HTMLDivElement>(null);
     const [statusFilter, setStatusFilter] = useState('all');
+    const [skuSearch, setSkuSearch] = useState('');
     
     const [replenishingSku, setReplenishingSku] = useState<ProductSKU | null>(null);
     const [aiInsight, setAiInsight] = useState('');
@@ -170,12 +171,19 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
         return replenishmentData.filter(item => {
             const shopMatch = selectedShopIds.length === 0 || selectedShopIds.includes(item.sku.shopId);
             const statusMatch = statusFilter === 'all' || item.status === statusFilter;
-            return shopMatch && statusMatch;
+            
+            const searchLower = skuSearch.toLowerCase().trim();
+            const skuMatch = !searchLower || 
+                             item.sku.code.toLowerCase().includes(searchLower) || 
+                             item.sku.name.toLowerCase().includes(searchLower) ||
+                             (item.sku.model && item.sku.model.toLowerCase().includes(searchLower));
+
+            return shopMatch && statusMatch && skuMatch;
         }).sort((a, b) => {
             const order = { severe: 0, warning: 1, normal: 2 };
             return order[a.status] - order[b.status];
         });
-    }, [replenishmentData, selectedShopIds, statusFilter]);
+    }, [replenishmentData, selectedShopIds, statusFilter, skuSearch]);
 
     const shopSummaries = useMemo((): ShopStockSummary[] => {
         const summaries = new Map<string, ShopStockSummary>();
@@ -236,9 +244,9 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             【断货高危SKU】：${riskStr}
             
             任务：
-            1. 快速识别最急迫的供需断层；
-            2. 针对厂直与入仓模式，给出差异化的补货优先级建议；
-            3. 提供2条优化库存周转率的战略建议。
+            1.快速识别最急迫的供需断层；
+            2.针对厂直与入仓模式，给出差异化的补货优先级建议；
+            3.提供2条优化库存周转率的战略建议。
             专业、果断，200字以内。`;
 
             const response = await fetch('/api/generate', {
@@ -264,7 +272,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
         severe: replenishmentData.filter(d => d.status === 'severe').length,
         warning: replenishmentData.filter(d => d.status === 'warning').length,
         totalSkus: replenishmentData.length,
-        healthyRate: (replenishmentData.filter(d => d.status === 'normal').length / replenishmentData.length * 100).toFixed(1)
+        healthyRate: replenishmentData.length > 0 ? (replenishmentData.filter(d => d.status === 'normal').length / replenishmentData.length * 100).toFixed(1) : "0.0"
     };
 
     return (
@@ -276,7 +284,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                 onConfirm={handleReplenishConfirm}
             />
 
-            {/* Header - Command Console Style */}
+            {/* Header - Simplified Title */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
                 <div>
                     <div className="flex items-center gap-3 mb-2">
@@ -285,36 +293,6 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 供应链决策中心</h1>
                     <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Demand Forecasting & Intelligent Inventory Replenishment Hub</p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-[32px] shadow-xl border border-slate-100">
-                    <div className="relative" ref={shopDropdownRef}>
-                        <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="min-w-[180px] bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-xs font-black text-slate-700 flex justify-between items-center hover:bg-slate-100 transition-all">
-                            <span className="truncate">{selectedShopIds.length === 0 ? '全域探测' : `已选 ${selectedShopIds.length} 店铺`}</span>
-                            <ChevronDown size={14} className="ml-2 text-slate-400" />
-                        </button>
-                        {isShopDropdownOpen && (
-                            <div className="absolute top-full right-0 w-64 mt-3 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 p-4 max-h-64 overflow-y-auto no-scrollbar animate-slideIn">
-                                {shops.map(shop => (
-                                    <label key={shop.id} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
-                                        <input type="checkbox" checked={selectedShopIds.includes(shop.id)} onChange={() => { setSelectedShopIds(prev => prev.includes(shop.id) ? prev.filter(id => id !== shop.id) : [...prev, shop.id]); setCurrentPage(1); }} className="hidden" />
-                                        {selectedShopIds.includes(shop.id) ? <CheckSquare size={16} className="text-brand" /> : <Square size={16} className="text-slate-300 group-hover:text-slate-400" />}
-                                        <span className="text-xs font-bold text-slate-700">{shop.name}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <select 
-                        value={statusFilter} 
-                        onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                        className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3 text-xs font-black text-slate-700 outline-none focus:border-brand appearance-none shadow-sm min-w-[150px]"
-                    >
-                        <option value="all">全策略状态</option>
-                        <option value="severe">断货高危</option>
-                        <option value="warning">建议补货</option>
-                        <option value="normal">健康周转</option>
-                    </select>
                 </div>
             </div>
 
@@ -387,9 +365,10 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Main SKU Table */}
+                {/* Main SKU Table Container */}
                 <div className="lg:col-span-8 bg-white rounded-[48px] p-10 shadow-sm border border-slate-100 min-h-[700px] flex flex-col">
-                    <div className="flex items-center justify-between mb-8">
+                    {/* Header Section for Table */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-blue-600">
                                 <LayoutDashboard size={24} />
@@ -398,6 +377,47 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">资产周转穿透明细</h3>
                                 <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">SKU Level Stock Peneteration Records</p>
                             </div>
+                        </div>
+
+                        {/* Search & Filters Integrated Here */}
+                        <div className="flex items-center gap-3 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+                            <div className="relative group">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand transition-colors" />
+                                <input 
+                                    type="text" 
+                                    placeholder="搜索 SKU / 名称..." 
+                                    value={skuSearch}
+                                    onChange={e => { setSkuSearch(e.target.value); setCurrentPage(1); }}
+                                    className="pl-9 pr-4 py-2 w-48 bg-white border border-slate-100 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all shadow-sm"
+                                />
+                            </div>
+                            <div className="relative" ref={shopDropdownRef}>
+                                <button onClick={() => setIsShopDropdownOpen(!isShopDropdownOpen)} className="min-w-[140px] bg-white border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-600 flex justify-between items-center hover:bg-slate-50 transition-all shadow-sm">
+                                    <span className="truncate">{selectedShopIds.length === 0 ? '全域探测' : `已选 ${selectedShopIds.length} 店`}</span>
+                                    <ChevronDown size={12} className="ml-1 text-slate-400" />
+                                </button>
+                                {isShopDropdownOpen && (
+                                    <div className="absolute bottom-full mb-3 right-0 w-56 bg-white border border-slate-200 rounded-3xl shadow-2xl z-50 p-4 max-h-64 overflow-y-auto no-scrollbar animate-slideIn">
+                                        {shops.map(shop => (
+                                            <label key={shop.id} className="flex items-center gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group">
+                                                <input type="checkbox" checked={selectedShopIds.includes(shop.id)} onChange={() => { setSelectedShopIds(prev => prev.includes(shop.id) ? prev.filter(id => id !== shop.id) : [...prev, shop.id]); setCurrentPage(1); }} className="hidden" />
+                                                {selectedShopIds.includes(shop.id) ? <CheckSquare size={16} className="text-brand" /> : <Square size={16} className="text-slate-300 group-hover:text-slate-400" />}
+                                                <span className="text-[10px] font-bold text-slate-700">{shop.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <select 
+                                value={statusFilter} 
+                                onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                className="bg-white border border-slate-100 rounded-xl px-4 py-2 text-[10px] font-black text-slate-600 outline-none focus:border-brand appearance-none shadow-sm min-w-[110px]"
+                            >
+                                <option value="all">全策略状态</option>
+                                <option value="severe">断货高危</option>
+                                <option value="warning">建议补货</option>
+                                <option value="normal">健康周转</option>
+                            </select>
                         </div>
                     </div>
 
