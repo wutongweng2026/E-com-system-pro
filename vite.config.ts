@@ -6,12 +6,13 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // 关键修复：将环境变量注入到浏览器环境
-    // 既支持 Gemini API_KEY，也支持 Supabase 的连接凭证
+    // 明确注入特定变量，移除全局 'process.env': {} 以避免副作用
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ""),
     'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || ""),
     'process.env.SUPABASE_KEY': JSON.stringify(process.env.SUPABASE_KEY || ""),
-    'process.env': {}
+    // 如果其他库严格依赖 process.env.NODE_ENV，Vite 通常会自动处理，
+    // 但为了兼容性，可以显式定义 NODE_ENV
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   build: {
     // 解决 "Adjust chunk size limit" 告警

@@ -1,9 +1,14 @@
 
 /**
  * Cloud-Native Database Adapter
- * v5.3.3 Upgrade: Environment Variable Auto-Discovery
+ * v5.3.4 Upgrade: Zero-Config Fallback Strategy
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+// 默认演示配置 (兜底策略)
+// 当用户既没有设置环境变量，也没有手动配置时，使用此公开演示库
+const DEFAULT_FALLBACK_URL = "https://stycaaqvjbjnactxcvyh.supabase.co";
+const DEFAULT_FALLBACK_KEY = "sb_publishable_m4yyJRlDY107a3Nkx6Pybw_6Mdvxazn";
 
 // 辅助：延迟函数
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -14,7 +19,7 @@ let supabaseInstance: SupabaseClient | null = null;
 // 内存级配置缓存
 let memoryCloudConfig: { url: string; key: string } | null = null;
 
-// 获取客户端 (优先读取内存 -> 环境变量 -> 本地存储)
+// 获取客户端 (优先读取内存 -> 环境变量 -> 本地存储 -> 默认演示库)
 const getClient = (): SupabaseClient | null => {
     // 1. 如果已有活跃实例，直接返回
     if (supabaseInstance) return supabaseInstance;
@@ -23,14 +28,13 @@ const getClient = (): SupabaseClient | null => {
     let config = memoryCloudConfig;
 
     // 2.1 如果内存没有，检查环境变量 (Vercel Deployment)
-    // 这是最稳定的方式，不需要用户手动输入
     if (!config) {
         const envUrl = process.env.SUPABASE_URL;
         const envKey = process.env.SUPABASE_KEY;
         if (envUrl && envKey) {
             config = { url: envUrl.trim(), key: envKey.trim() };
-            memoryCloudConfig = config; // 存入内存缓存
-            console.log("[Yunzhou DB] Auto-connected via Environment Variables.");
+            memoryCloudConfig = config; 
+            console.log("[Yunzhou DB] Connected via Environment Variables.");
         }
     }
 
@@ -50,9 +54,15 @@ const getClient = (): SupabaseClient | null => {
         }
     }
 
-    // 3. 最终检查
+    // 2.3 【关键修复】如果还是没有配置，使用默认演示库
+    if (!config) {
+        console.warn("[Yunzhou DB] No custom config found. Using Fallback Demo Database.");
+        config = { url: DEFAULT_FALLBACK_URL, key: DEFAULT_FALLBACK_KEY };
+        memoryCloudConfig = config; // 存入内存，避免重复警告
+    }
+
+    // 3. 最终检查 (理论上不会触发，因为有 Default)
     if (!config || !config.url || !config.key) {
-        // 静默失败，让 UI 层处理提示
         return null;
     }
 
@@ -83,9 +93,9 @@ export const DB = {
   async bulkAdd(tableName: string, rows: any[], onProgress?: (percent: number) => void): Promise<void> {
     const supabase = getClient();
     
-    // 强化错误提示
     if (!supabase) {
-        throw new Error(`无法建立云端连接。系统未检测到 Supabase 配置 (环境变量或本地存储均为空)。请在 Vercel 设置环境变量或在[云端同步]页面手动配置。`);
+        // 这一步理论上不可达，除非 Supabase SDK 初始化崩溃
+        throw new Error(`云端连接初始化失败。请检查浏览器控制台日志。`);
     }
 
     let conflictKey = undefined;
@@ -125,7 +135,7 @@ export const DB = {
                 console.error(`[Cloud] Upload Failed (Retry ${retries}):`, e.message);
                 retries--;
                 await sleep(1500); 
-                if (retries === 0) throw new Error(`云端写入失败 (网络或权限): ${e.message}`);
+                if (retries === 0) throw new Error(`云端写入失败: ${e.message}`);
             }
         }
 
@@ -136,22 +146,21 @@ export const DB = {
     }
   },
 
-  // 读取配置：支持混合模式 (Env > Memory > LocalStorage)
   async loadConfig<T>(key: string, defaultValue: T): Promise<T> {
     if (key === 'cloud_sync_config') {
-        // 如果环境变量存在，直接返回脱敏信息，表示“已配置”
         if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
             return { 
                 url: process.env.SUPABASE_URL, 
                 key: process.env.SUPABASE_KEY, 
-                isEnv: true // 标记源自环境变量
+                isEnv: true 
             } as unknown as T;
         }
         
         if (memoryCloudConfig) return memoryCloudConfig as unknown as T;
         try {
             const raw = localStorage.getItem('yunzhou_cloud_config');
-            return raw ? JSON.parse(raw) : defaultValue;
+            // 如果本地没存，返回默认演示配置，确保 UI 显示正常
+            return raw ? JSON.parse(raw) : { url: DEFAULT_FALLBACK_URL, key: DEFAULT_FALLBACK_KEY };
         } catch { return defaultValue; }
     }
 
