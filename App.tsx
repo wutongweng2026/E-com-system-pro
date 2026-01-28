@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, CloudSync as SyncIcon } from 'lucide-react';
 
@@ -22,6 +23,7 @@ import { AICompetitorMonitoringView } from './views/AICompetitorMonitoringView';
 
 import { View, TableType, ToastProps, Shop, ProductSKU, CustomerServiceAgent, UploadHistory, QuotingData, SkuList, SnapshotSettings, MonitoredCompetitorShop, CompetitorGroup } from './lib/types';
 import { DB } from './lib/db';
+import { parseExcelFile } from './lib/excel';
 import { INITIAL_SHANGZHI_SCHEMA, INITIAL_JINGZHUNTONG_SCHEMA, INITIAL_CUSTOMER_SERVICE_SCHEMA } from './lib/schemas';
 
 const INITIAL_QUOTING_DATA: QuotingData = {
@@ -61,6 +63,10 @@ export const App = () => {
 
     const loadMetadata = useCallback(async () => {
         try {
+            // 1. 尝试从云端静默同步配置
+            await DB.syncPull();
+
+            // 2. 加载本地数据 (此时本地数据已是最新的)
             const [s_shops, s_skus, s_agents, s_skuLists, history, settings, q_data, s_sz, s_jzt, s_cs_schema, s_compShops, s_compGroups] = await Promise.all([
                 DB.loadConfig('dim_shops', []),
                 DB.loadConfig('dim_skus', []),
@@ -85,7 +91,10 @@ export const App = () => {
             setSchemas({ shangzhi: s_sz, jingzhuntong: s_jzt, customer_service: s_cs_schema });
             setFactTables({ shangzhi: f_sz, jingzhuntong: f_jzt, customer_service: f_cs });
             setCompShops(s_compShops); setCompGroups(s_compGroups);
-        } catch (e) {}
+        } catch (e) {
+            console.error("Initialization failed:", e);
+            addToast('error', '系统初始化警告', '部分数据加载失败，正使用本地缓存运行。');
+        }
     }, []);
 
     useEffect(() => { 
@@ -100,6 +109,9 @@ export const App = () => {
     const onDeleteRows = async (tableType: TableType, ids: any[]) => {
         try {
             await DB.deleteRows(`fact_${tableType}`, ids);
+            // 刷新数据
+            const newData = await DB.getRange(`fact_${tableType}`, '1970-01-01', '2099-12-31');
+            setFactTables((prev: any) => ({ ...prev, [tableType]: newData }));
         } catch (e) {
             addToast('error', '物理删除失败', '操作数据库时发生错误。');
             throw e;
@@ -111,7 +123,7 @@ export const App = () => {
         try {
             await DB.saveConfig(key, data);
             await loadMetadata();
-            addToast('success', '同步成功', `已批量更新 ${data.length} 条${type}数据。`);
+            addToast('success', '同步成功', `已批量更新 ${data.length} 条${type}数据并同步至云端。`);
         } catch (e) {
             addToast('error', '物理写入失败', `无法保存${type}数据到本地库。`);
         }
@@ -124,11 +136,100 @@ export const App = () => {
         return true;
     };
 
+    // 统一数据上传处理器
+    const handleUpload = async (file: File, type: TableType, shopId?: string) => {
+        return new Promise<void>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const { data } = parseExcelFile(e.target?.result);
+                    if (data.length === 0) throw new Error("文件内容为空或格式无法识别");
+
+                    // 数据增强：注入店铺ID和日期
+                    const enrichedData = data.map(row => {
+                        // 尝试智能修正日期格式
+                        if (row['日期'] && typeof row['日期'] === 'number') {
+                             const date = new Date((row['日期'] - 25569) * 86400 * 1000);
+                             row['date'] = date.toISOString().split('T')[0];
+                        } else if (row['日期']) {
+                             row['date'] = row['日期'];
+                        }
+                        
+                        // 注入 shopId (如果用户在下拉菜单选了)
+                        if (shopId) {
+                            const shop = shops.find(s => s.id === shopId);
+                            if (shop) row['shop_name'] = shop.name;
+                        }
+                        return row;
+                    });
+
+                    // 写入数据库 (Local + Cloud)
+                    const tableName = `fact_${type}`;
+                    await DB.bulkAdd(tableName, enrichedData);
+
+                    // 记录历史
+                    const newHistoryItem: UploadHistory = {
+                        id: Date.now().toString(),
+                        fileName: file.name,
+                        fileSize: (file.size / 1024).toFixed(1) + 'KB',
+                        rowCount: data.length,
+                        uploadTime: new Date().toLocaleString(),
+                        status: '成功',
+                        targetTable: type
+                    };
+                    const updatedHistory = [newHistoryItem, ...uploadHistory];
+                    setUploadHistory(updatedHistory);
+                    await DB.saveConfig('upload_history', updatedHistory);
+
+                    // 刷新视图
+                    await loadMetadata();
+                    addToast('success', '全链路同步完成', `已成功解析并上传 ${data.length} 条物理记录。`);
+                    resolve();
+                } catch (err: any) {
+                    addToast('error', '上传失败', err.message);
+                    reject(err);
+                }
+            };
+            reader.readAsBinaryString(file);
+        });
+    };
+
+    const handleBatchUpdate = async (skusToUpdate: string[], shopId: string) => {
+        try {
+            const shop = shops.find(s => s.id === shopId);
+            if (!shop) throw new Error("目标店铺不存在");
+            
+            // 这里为了简化，我们只更新商智表。实际可能需要更新所有表。
+            // 这是一个比较重的操作，需要遍历全表。IndexedDB 中我们可以用 Cursor。
+            const allRows = await DB.getTableRows('fact_shangzhi');
+            const updatedRows = [];
+            
+            for (const row of allRows) {
+                const rowSku = row.sku_code || row.product_id;
+                if (skusToUpdate.includes(rowSku)) {
+                    row.shop_name = shop.name;
+                    updatedRows.push(row);
+                }
+            }
+            
+            if (updatedRows.length > 0) {
+                await DB.bulkAdd('fact_shangzhi', updatedRows);
+                await loadMetadata();
+                addToast('success', '批量修正完成', `已更新 ${updatedRows.length} 条历史数据的归属店铺。`);
+            } else {
+                addToast('success', '操作完成', '未发现需要修正的记录。');
+            }
+        } catch (e: any) {
+            addToast('error', '批量更新失败', e.message);
+        }
+    };
+
     const renderView = () => {
         if (isAppLoading) return (
             <div className="flex flex-col h-full items-center justify-center text-slate-400 font-black bg-white">
                 <SyncIcon size={48} className="mb-4 text-brand animate-spin" />
-                <p className="tracking-[0.4em] uppercase text-xs font-black">云舟引擎正在启航...</p>
+                <p className="tracking-[0.4em] uppercase text-xs font-black">云舟引擎正在热同步...</p>
+                <p className="text-[10px] mt-2 opacity-50">Syncing with Cloud Master Node</p>
             </div>
         );
         
@@ -137,7 +238,7 @@ export const App = () => {
             case 'dashboard': return <DashboardView {...commonProps} />;
             case 'multiquery': return <MultiQueryView {...commonProps} shangzhiData={factTables.shangzhi} jingzhuntongData={factTables.jingzhuntong} />;
             case 'reports': return <ReportsView {...commonProps} factTables={factTables} skuLists={skuLists} onAddNewSkuList={async (l:any) => { const n = [...skuLists, {...l, id: Date.now().toString()}]; setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onUpdateSkuList={async (l:any) => { const n = skuLists.map(x=>x.id===l.id?l:x); setSkuLists(n); await DB.saveConfig('dim_sku_lists', n); return true; }} onDeleteSkuList={(id:any) => { const n = skuLists.filter(x=>x.id!==id); setSkuLists(n); DB.saveConfig('dim_sku_lists', n); }} />;
-            case 'data-center': return <DataCenterView onUpload={async ()=>{}} onBatchUpdate={async ()=>{}} history={uploadHistory} factTables={factTables} shops={shops} schemas={schemas} addToast={addToast} />;
+            case 'data-center': return <DataCenterView onUpload={handleUpload} onBatchUpdate={handleBatchUpdate} history={uploadHistory} factTables={factTables} shops={shops} schemas={schemas} addToast={addToast} />;
             case 'cloud-sync': return <CloudSyncView addToast={addToast} />;
             case 'data-experience': return <DataExperienceView factTables={factTables} schemas={schemas} shops={shops} onClearTable={async (k:any)=>await DB.clearTable(`fact_${k}`)} onDeleteRows={onDeleteRows} onRefreshData={loadMetadata} onUpdateSchema={async (t:any, s:any) => { const ns = {...schemas, [t]: s}; setSchemas(ns); await DB.saveConfig(`schema_${t}`, s); }} addToast={addToast} />;
             case 'products': return (

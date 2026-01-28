@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
     LayoutGrid, 
     Search, 
@@ -18,9 +18,12 @@ import {
     Binoculars,
     MessageSquare,
     Image as ImageIcon,
-    Layers
+    Layers,
+    Wifi,
+    WifiOff
 } from 'lucide-react';
 import { View } from '../lib/types';
+import { DB } from '../lib/db';
 
 const SidebarItem = ({ icon, label, active, onClick, collapsed }: { icon: React.ReactNode, label: string, active: boolean, onClick: () => void, collapsed: boolean }) => (
     <button 
@@ -61,6 +64,23 @@ export const Sidebar = ({ currentView, setCurrentView, isSidebarCollapsed, setIs
     isSidebarCollapsed: boolean;
     setIsSidebarCollapsed: (collapsed: boolean) => void;
 }) => {
+    const [cloudStatus, setCloudStatus] = useState<'connected' | 'offline'>('offline');
+
+    useEffect(() => {
+        const checkCloud = async () => {
+            const config = await DB.loadConfig('cloud_sync_config', null);
+            if (config && config.url && config.key) {
+                setCloudStatus('connected');
+            } else {
+                setCloudStatus('offline');
+            }
+        };
+        checkCloud();
+        // Simple polling to check status periodically
+        const interval = setInterval(checkCloud, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} bg-navy h-full flex flex-col shrink-0 transition-all duration-300 ease-in-out z-50 relative`}>
             
@@ -115,14 +135,22 @@ export const Sidebar = ({ currentView, setCurrentView, isSidebarCollapsed, setIs
                 <SidebarItem collapsed={isSidebarCollapsed} icon={<Database size={18} />} label="数据中心" active={currentView === 'data-center'} onClick={() => setCurrentView('data-center')} />
             </div>
 
-            {/* Profile Footer */}
+            {/* Profile Footer with Cloud Status */}
             <div className="p-4 border-t border-white/5">
-                <div className={`flex items-center transition-all ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-2'} py-3 rounded-xl hover:bg-white/5 cursor-pointer`}>
-                    <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center font-black text-brand text-[10px] shrink-0 border border-brand/20">M1</div>
+                <div className={`flex items-center transition-all ${isSidebarCollapsed ? 'justify-center' : 'gap-3 px-2'} py-3 rounded-xl hover:bg-white/5 cursor-pointer group`}>
+                    <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center font-black text-brand text-[10px] shrink-0 border border-brand/20">M1</div>
+                        {/* Cloud Status Dot */}
+                        <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-navy flex items-center justify-center ${cloudStatus === 'connected' ? 'bg-green-500' : 'bg-slate-500'}`} title={cloudStatus === 'connected' ? "云端已连接" : "离线模式"}>
+                            {cloudStatus === 'connected' ? <Wifi size={8} className="text-white" /> : <WifiOff size={8} className="text-white" />}
+                        </div>
+                    </div>
                     {!isSidebarCollapsed && (
                       <div className="flex-1 min-w-0">
                           <div className="text-xs font-black text-slate-200 truncate">梧桐翁</div>
-                           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">System Master</div>
+                           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter flex items-center gap-1">
+                               System Master
+                           </div>
                       </div>
                     )}
                 </div>

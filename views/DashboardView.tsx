@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     TrendingUp, ShoppingBag, Activity, CreditCard, Target, 
     ArrowUp, ArrowDown, Sparkles, Bot as BotIcon, ChevronRight, 
     ShieldAlert, PackageSearch, Flame, DatabaseZap, 
     Star, CalendarX, X, MousePointer2, SearchCode, ChevronLeft,
-    AlertTriangle, TrendingDown, Layers, Ban, Zap
+    AlertTriangle, TrendingDown, Layers, Ban, Zap, RefreshCw, UploadCloud
 } from 'lucide-react';
 import { DB } from '../lib/db';
 import { ProductSKU, Shop } from '../lib/types';
@@ -185,6 +186,7 @@ const MainTrendVisual = ({ data, metricKey }: { data: DailyRecord[], metricKey: 
 
 export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], shops: Shop[], addToast: any }) => {
     const [isLoading, setIsLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [activeMetric, setActiveMetric] = useState<MetricKey>('gmv');
     const [rangeType, setRangeType] = useState<RangeType>('7d');
     const [customRange, setCustomRange] = useState({
@@ -221,127 +223,142 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
         return () => clearInterval(timer);
     }, [diagnoses.length]);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoading(true);
-            let start = rangeType === 'custom' ? customRange.start : new Date(Date.now() - (rangeType === '7d' ? 6 : 29) * 86400000).toISOString().split('T')[0];
-            let end = rangeType === 'custom' ? customRange.end : new Date().toISOString().split('T')[0];
+    const fetchData = async () => {
+        setIsLoading(true);
+        let start = rangeType === 'custom' ? customRange.start : new Date(Date.now() - (rangeType === '7d' ? 6 : 29) * 86400000).toISOString().split('T')[0];
+        let end = rangeType === 'custom' ? customRange.end : new Date().toISOString().split('T')[0];
 
-            const diff = Math.ceil(Math.abs(new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1;
-            const prevEnd = new Date(new Date(start).getTime() - 86400000).toISOString().split('T')[0];
-            const prevStart = new Date(new Date(prevEnd).getTime() - (diff - 1) * 86400000).toISOString().split('T')[0];
+        const diff = Math.ceil(Math.abs(new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1;
+        const prevEnd = new Date(new Date(start).getTime() - 86400000).toISOString().split('T')[0];
+        const prevStart = new Date(new Date(prevEnd).getTime() - (diff - 1) * 86400000).toISOString().split('T')[0];
 
-            try {
-                const [currSz, currJzt, prevSz, prevJzt] = await Promise.all([
-                    DB.getRange('fact_shangzhi', start, end),
-                    DB.getRange('fact_jingzhuntong', start, end),
-                    DB.getRange('fact_shangzhi', prevStart, prevEnd),
-                    DB.getRange('fact_jingzhuntong', prevStart, prevEnd)
-                ]);
+        try {
+            const [currSz, currJzt, prevSz, prevJzt] = await Promise.all([
+                DB.getRange('fact_shangzhi', start, end),
+                DB.getRange('fact_jingzhuntong', start, end),
+                DB.getRange('fact_shangzhi', prevStart, prevEnd),
+                DB.getRange('fact_jingzhuntong', prevStart, prevEnd)
+            ]);
 
-                const processStats = (sz: any[], jzt: any[]) => {
-                    const stats = { gmv: { total: 0, self: 0, pop: 0 }, ca: { total: 0, self: 0, pop: 0 }, spend: { total: 0, self: 0, pop: 0 } };
-                    sz.forEach(r => {
-                        const code = getSkuIdentifier(r);
-                        if (code && enabledSkusMap.has(code)) {
-                            const val = Number(r.paid_amount) || 0;
-                            const items = Number(r.paid_items) || 0;
-                            const mode = shopIdToMode.get(enabledSkusMap.get(code)?.shopId || '') || '自营';
-                            stats.gmv.total += val; stats.ca.total += items;
-                            if (['自营', '入仓'].includes(mode)) { stats.gmv.self += val; stats.ca.self += items; }
-                            else { stats.gmv.pop += val; stats.ca.pop += items; }
-                        }
-                    });
-                    jzt.forEach(r => {
-                        const code = getSkuIdentifier(r);
-                        if (code && enabledSkusMap.has(code)) {
-                            const cost = Number(r.cost) || 0;
-                            const mode = shopIdToMode.get(enabledSkusMap.get(code)?.shopId || '') || '自营';
-                            stats.spend.total += cost;
-                            if (['自营', '入仓'].includes(mode)) stats.spend.self += cost; else stats.spend.pop += cost;
-                        }
-                    });
-                    return stats;
-                };
-
-                const curr = processStats(currSz, currJzt);
-                const prev = processStats(prevSz, prevJzt);
-                
-                const dailyAgg: Record<string, DailyRecord> = {};
-                for(let i=0; i<diff; i++) {
-                    const ds = new Date(new Date(start).getTime() + i * 86400000).toISOString().split('T')[0];
-                    dailyAgg[ds] = { date: ds, self: 0, pop: 0, total: 0 };
-                }
-                
-                const factorTable = activeMetric === 'gmv' ? currSz : (activeMetric === 'spend' ? currJzt : currSz);
-                factorTable.forEach(r => {
+            const processStats = (sz: any[], jzt: any[]) => {
+                const stats = { gmv: { total: 0, self: 0, pop: 0 }, ca: { total: 0, self: 0, pop: 0 }, spend: { total: 0, self: 0, pop: 0 } };
+                sz.forEach(r => {
                     const code = getSkuIdentifier(r);
-                    if (code && enabledSkusMap.has(code) && dailyAgg[r.date]) {
+                    if (code && enabledSkusMap.has(code)) {
+                        const val = Number(r.paid_amount) || 0;
+                        const items = Number(r.paid_items) || 0;
                         const mode = shopIdToMode.get(enabledSkusMap.get(code)?.shopId || '') || '自营';
-                        let val = 0;
-                        if (activeMetric === 'gmv') val = Number(r.paid_amount);
-                        else if (activeMetric === 'ca') val = Number(r.paid_items);
-                        else if (activeMetric === 'spend') val = Number(r.cost);
-                        else if (activeMetric === 'roi') {
-                            const items = Number(r.paid_amount) || 0;
-                            const cost = Number(currJzt.find(j => j.date === r.date && getSkuIdentifier(j) === code)?.cost) || 0;
-                            val = cost > 0 ? items / cost : 0;
-                        }
-                        if (['自营', '入仓'].includes(mode)) dailyAgg[r.date].self += val; else dailyAgg[r.date].pop += val;
-                        dailyAgg[r.date].total += val;
+                        stats.gmv.total += val; stats.ca.total += items;
+                        if (['自营', '入仓'].includes(mode)) { stats.gmv.self += val; stats.ca.self += items; }
+                        else { stats.gmv.pop += val; stats.ca.pop += items; }
                     }
                 });
-
-                setData({
-                    gmv: { total: { current: curr.gmv.total, previous: prev.gmv.total }, self: { current: curr.gmv.self, previous: prev.gmv.self }, pop: { current: curr.gmv.pop, previous: prev.gmv.pop } },
-                    ca: { total: { current: curr.ca.total, previous: prev.ca.total }, self: { current: curr.ca.self, previous: prev.ca.self }, pop: { current: curr.ca.pop, previous: prev.ca.pop } },
-                    spend: { total: { current: curr.spend.total, previous: prev.spend.total }, self: { current: curr.spend.self, previous: prev.spend.self }, pop: { current: curr.spend.pop, previous: prev.spend.pop } },
-                    roi: { 
-                        total: { current: curr.spend.total > 0 ? curr.gmv.total / curr.spend.total : 0, previous: prev.spend.total > 0 ? prev.gmv.total / prev.spend.total : 0 },
-                        self: { current: curr.spend.self > 0 ? curr.gmv.self / curr.spend.self : 0, previous: prev.spend.self > 0 ? prev.gmv.self / prev.spend.self : 0 },
-                        pop: { current: curr.spend.pop > 0 ? curr.gmv.pop / curr.spend.pop : 0, previous: prev.spend.pop > 0 ? prev.gmv.pop / prev.spend.pop : 0 }
+                jzt.forEach(r => {
+                    const code = getSkuIdentifier(r);
+                    if (code && enabledSkusMap.has(code)) {
+                        const cost = Number(r.cost) || 0;
+                        const mode = shopIdToMode.get(enabledSkusMap.get(code)?.shopId || '') || '自营';
+                        stats.spend.total += cost;
+                        if (['自营', '入仓'].includes(mode)) stats.spend.self += cost; else stats.spend.pop += cost;
                     }
                 });
-                setTrends(Object.values(dailyAgg));
+                return stats;
+            };
 
-                const diag: Diagnosis[] = [];
-                const currSkusSet = new Set(currSz.map(getSkuIdentifier));
-                const prevSkusSet = new Set(prevSz.map(getSkuIdentifier));
+            const curr = processStats(currSz, currJzt);
+            const prev = processStats(prevSz, prevJzt);
+            
+            const dailyAgg: Record<string, DailyRecord> = {};
+            for(let i=0; i<diff; i++) {
+                const ds = new Date(new Date(start).getTime() + i * 86400000).toISOString().split('T')[0];
+                dailyAgg[ds] = { date: ds, self: 0, pop: 0, total: 0 };
+            }
+            
+            const factorTable = activeMetric === 'gmv' ? currSz : (activeMetric === 'spend' ? currJzt : currSz);
+            factorTable.forEach(r => {
+                const code = getSkuIdentifier(r);
+                if (code && enabledSkusMap.has(code) && dailyAgg[r.date]) {
+                    const mode = shopIdToMode.get(enabledSkusMap.get(code)?.shopId || '') || '自营';
+                    let val = 0;
+                    if (activeMetric === 'gmv') val = Number(r.paid_amount);
+                    else if (activeMetric === 'ca') val = Number(r.paid_items);
+                    else if (activeMetric === 'spend') val = Number(r.cost);
+                    else if (activeMetric === 'roi') {
+                        const items = Number(r.paid_amount) || 0;
+                        const cost = Number(currJzt.find(j => j.date === r.date && getSkuIdentifier(j) === code)?.cost) || 0;
+                        val = cost > 0 ? items / cost : 0;
+                    }
+                    if (['自营', '入仓'].includes(mode)) dailyAgg[r.date].self += val; else dailyAgg[r.date].pop += val;
+                    dailyAgg[r.date].total += val;
+                }
+            });
 
-                // 1. 新资产激活
-                const newlyActive = Array.from(currSkusSet).filter(c => c && !prevSkusSet.has(c) && enabledSkusMap.has(c));
-                if (newlyActive.length > 0) {
-                    diag.push({
-                        id: 'new_active', severity: 'success', type: 'new_sku', title: '新资产动销激活',
-                        desc: `探测到 ${newlyActive.length} 个 SKU 在本周期内首次产生物理交易流水。`,
-                        details: { '激活清单': newlyActive.map(c => `• ${enabledSkusMap.get(c!)?.name || c}`).join('\n') }
-                    });
+            setData({
+                gmv: { total: { current: curr.gmv.total, previous: prev.gmv.total }, self: { current: curr.gmv.self, previous: prev.gmv.self }, pop: { current: curr.gmv.pop, previous: prev.gmv.pop } },
+                ca: { total: { current: curr.ca.total, previous: prev.ca.total }, self: { current: curr.ca.self, previous: prev.ca.self }, pop: { current: curr.ca.pop, previous: prev.ca.pop } },
+                spend: { total: { current: curr.spend.total, previous: prev.spend.total }, self: { current: curr.spend.self, previous: prev.spend.self }, pop: { current: curr.spend.pop, previous: prev.spend.pop } },
+                roi: { 
+                    total: { current: curr.spend.total > 0 ? curr.gmv.total / curr.spend.total : 0, previous: prev.spend.total > 0 ? prev.gmv.total / prev.spend.total : 0 },
+                    self: { current: curr.spend.self > 0 ? curr.gmv.self / curr.spend.self : 0, previous: prev.spend.self > 0 ? prev.gmv.self / prev.spend.self : 0 },
+                    pop: { current: curr.spend.pop > 0 ? curr.gmv.pop / curr.spend.pop : 0, previous: prev.spend.pop > 0 ? prev.gmv.pop / prev.spend.pop : 0 }
                 }
-                // 2. 增长失速
-                if (curr.gmv.total < prev.gmv.total * 0.8 && prev.gmv.total > 0) {
-                    diag.push({ id: 'drop', severity: 'critical', type: 'data_gap', title: '全链路增长失速', desc: 'GMV 环比大幅度下滑超过 20%，需立即介入审计转化链路。', details: { '环比降幅': `${(((curr.gmv.total-prev.gmv.total)/prev.gmv.total)*100).toFixed(1)}%` } });
-                }
-                // 3. 库存枯竭
-                const stockRisks = skus.filter(s => s.isStatisticsEnabled && ((s.warehouseStock || 0) + (s.factoryStock || 0)) < (currSz.find(r => getSkuIdentifier(r) === s.code)?.paid_items || 0));
-                if (stockRisks.length > 0) {
-                    diag.push({ id: 'stock_out', severity: 'critical', type: 'stock_severe', title: '物理库存枯竭预警', desc: `${stockRisks.length} 个核心资产库存已无法覆盖单周销量。`, details: { '风险列表': stockRisks.slice(0,3).map(s => `• ${s.name} (余:${(s.warehouseStock||0)+(s.factoryStock||0)})`).join('\n') } });
-                }
-                // 4. 投放赤字
-                const lowRoiSkus = Array.from(currSkusSet).filter(code => {
-                    const spend = currJzt.filter(j => getSkuIdentifier(j) === code).reduce((s, j) => s + (Number(j.cost) || 0), 0);
-                    const gmv = currSz.filter(z => getSkuIdentifier(z) === code).reduce((s, z) => s + (Number(z.paid_amount) || 0), 0);
-                    return spend > 500 && (gmv / spend) < 1.2;
+            });
+            setTrends(Object.values(dailyAgg));
+
+            const diag: Diagnosis[] = [];
+            const currSkusSet = new Set(currSz.map(getSkuIdentifier));
+            const prevSkusSet = new Set(prevSz.map(getSkuIdentifier));
+
+            // 1. 新资产激活
+            const newlyActive = Array.from(currSkusSet).filter(c => c && !prevSkusSet.has(c) && enabledSkusMap.has(c));
+            if (newlyActive.length > 0) {
+                diag.push({
+                    id: 'new_active', severity: 'success', type: 'new_sku', title: '新资产动销激活',
+                    desc: `探测到 ${newlyActive.length} 个 SKU 在本周期内首次产生物理交易流水。`,
+                    details: { '激活清单': newlyActive.map(c => `• ${enabledSkusMap.get(c!)?.name || c}`).join('\n') }
                 });
-                if (lowRoiSkus.length > 0) {
-                    diag.push({ id: 'low_roi', severity: 'warning', type: 'low_roi', title: '投放能效赤字', desc: `检测到 ${lowRoiSkus.length} 个 SKU 广告投入产出比极低。`, details: { '重点负向SKU': lowRoiSkus.slice(0,3).map(c => `• ${enabledSkusMap.get(c!)?.name || c}`).join('\n') } });
-                }
-                
-                setDiagnoses(diag);
-                setActiveDiagIndex(0);
-            } finally { setIsLoading(false); }
-        };
+            }
+            // 2. 增长失速
+            if (curr.gmv.total < prev.gmv.total * 0.8 && prev.gmv.total > 0) {
+                diag.push({ id: 'drop', severity: 'critical', type: 'data_gap', title: '全链路增长失速', desc: 'GMV 环比大幅度下滑超过 20%，需立即介入审计转化链路。', details: { '环比降幅': `${(((curr.gmv.total-prev.gmv.total)/prev.gmv.total)*100).toFixed(1)}%` } });
+            }
+            // 3. 库存枯竭
+            const stockRisks = skus.filter(s => s.isStatisticsEnabled && ((s.warehouseStock || 0) + (s.factoryStock || 0)) < (currSz.find(r => getSkuIdentifier(r) === s.code)?.paid_items || 0));
+            if (stockRisks.length > 0) {
+                diag.push({ id: 'stock_out', severity: 'critical', type: 'stock_severe', title: '物理库存枯竭预警', desc: `${stockRisks.length} 个核心资产库存已无法覆盖单周销量。`, details: { '风险列表': stockRisks.slice(0,3).map(s => `• ${s.name} (余:${(s.warehouseStock||0)+(s.factoryStock||0)})`).join('\n') } });
+            }
+            // 4. 投放赤字
+            const lowRoiSkus = Array.from(currSkusSet).filter(code => {
+                const spend = currJzt.filter(j => getSkuIdentifier(j) === code).reduce((s, j) => s + (Number(j.cost) || 0), 0);
+                const gmv = currSz.filter(z => getSkuIdentifier(z) === code).reduce((s, z) => s + (Number(z.paid_amount) || 0), 0);
+                return spend > 500 && (gmv / spend) < 1.2;
+            });
+            if (lowRoiSkus.length > 0) {
+                diag.push({ id: 'low_roi', severity: 'warning', type: 'low_roi', title: '投放能效赤字', desc: `检测到 ${lowRoiSkus.length} 个 SKU 广告投入产出比极低。`, details: { '重点负向SKU': lowRoiSkus.slice(0,3).map(c => `• ${enabledSkusMap.get(c!)?.name || c}`).join('\n') } });
+            }
+            
+            setDiagnoses(diag);
+            setActiveDiagIndex(0);
+        } finally { setIsLoading(false); }
+    };
+
+    useEffect(() => {
         fetchData();
     }, [rangeType, customRange, activeMetric, enabledSkusMap, shopIdToMode]);
+
+    const handleForceSync = async () => {
+        setIsSyncing(true);
+        addToast('info', '云端链路激活', '正在强制同步物理层资产...');
+        try {
+            await DB.syncPull();
+            await fetchData();
+            addToast('success', '同步完成', '云端镜像已更新至最新物理状态。');
+        } catch(e) {
+            addToast('error', '同步异常', '无法连接至云端主节点。');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
 
     return (
         <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
@@ -350,16 +367,29 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 <div className="space-y-1">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">版本号：v5.0.2</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">版本号：v5.1.1</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">战略指挥控制台</h1>
                     <p className="text-slate-400 font-bold text-sm tracking-wide">Strategic Performance Intelligence & AI Dashboard</p>
                 </div>
                 
-                <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
-                    {[{id:'7d',l:'近7天'},{id:'30d',l:'近30天'},{id:'custom',l:'自定义'}].map(i => (
-                        <button key={i.id} onClick={() => setRangeType(i.id as RangeType)} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${rangeType === i.id ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}>{i.l}</button>
-                    ))}
+                <div className="flex items-center gap-4">
+                    {/* Manual Sync Button */}
+                    <button 
+                        onClick={handleForceSync}
+                        disabled={isSyncing}
+                        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 font-black text-xs hover:bg-slate-50 hover:text-brand hover:border-brand/30 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title="强制拉取云端最新数据"
+                    >
+                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''}/>
+                        {isSyncing ? '同步中...' : '强制同步'}
+                    </button>
+
+                    <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
+                        {[{id:'7d',l:'近7天'},{id:'30d',l:'近30天'},{id:'custom',l:'自定义'}].map(i => (
+                            <button key={i.id} onClick={() => setRangeType(i.id as RangeType)} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${rangeType === i.id ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}>{i.l}</button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
