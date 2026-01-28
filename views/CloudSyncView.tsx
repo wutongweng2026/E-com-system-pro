@@ -78,7 +78,6 @@ export const CloudSyncView = ({ addToast }: any) => {
         try {
             const supabase = createClient(supabaseUrl, supabaseKey);
             
-            // 核心物理事实表
             const tablesToSync = [
                 { local: 'fact_shangzhi', remote: 'fact_shangzhi', conflict: 'date,sku_code', label: '商智销售明细' },
                 { local: 'fact_jingzhuntong', remote: 'fact_jingzhuntong', conflict: 'date,tracked_sku_id,account_nickname', label: '广告投放明细' },
@@ -93,7 +92,6 @@ export const CloudSyncView = ({ addToast }: any) => {
                 totalRowsToSync += data.length;
             }
 
-            // 同步 app_config 中的所有维度
             const configData = await DB.getAllConfigs();
             const configEntries = Object.entries(configData)
                 .filter(([key]) => !['cloud_sync_config', 'dim_viki_kb', 'dim_quoting_library'].includes(key))
@@ -109,18 +107,18 @@ export const CloudSyncView = ({ addToast }: any) => {
 
             let processedRows = 0;
 
-            // 1. 同步事实流水
             for (const table of tablesToSync) {
                 const localData = tableDataMap[table.local];
                 if (localData.length === 0) continue;
 
-                const cleanData = localData.map(({ id, created_at, ...rest }: any) => {
+                // 移除 ID，让云端处理生成或匹配
+                const cleanData = localData.map(({ id, created_at, updated_at, ...rest }: any) => {
                     if (rest.date instanceof Date) rest.date = rest.date.toISOString().split('T')[0];
                     Object.keys(rest).forEach(key => { if (rest[key] === undefined) rest[key] = null; });
                     return rest;
                 });
 
-                const CHUNK_SIZE = 400; 
+                const CHUNK_SIZE = 200; 
                 for (let i = 0; i < cleanData.length; i += CHUNK_SIZE) {
                     const chunk = cleanData.slice(i, i + CHUNK_SIZE);
                     setSyncStatus(`推送 ${table.label}: ${i} / ${localData.length}`);
@@ -131,7 +129,6 @@ export const CloudSyncView = ({ addToast }: any) => {
                 }
             }
 
-            // 2. 同步战略配置项
             if (configEntries.length > 0) {
                 setSyncStatus('同步战略配置项...');
                 const { error: configError } = await supabase.from('app_config').upsert(configEntries, { onConflict: 'key' });
@@ -158,7 +155,6 @@ export const CloudSyncView = ({ addToast }: any) => {
         setIsProcessing(true);
         setSyncStatus('正在强制重置本地镜像...');
         try {
-            // 重置时间戳以触发全量拉取
             await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: '1970-01-01T00:00:00.000Z', autoSync });
             await DB.syncPull();
             const now = new Date().toLocaleString();
@@ -173,7 +169,7 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
-    const sqlScript = `-- 云舟 v5.2.0 自动增量同步数据库架构
+    const sqlScript = `-- 云舟 v5.2.0 自动增量同步数据库架构 (Update)
 -- 1. 核心战略配置表
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
@@ -181,7 +177,7 @@ CREATE TABLE IF NOT EXISTS app_config (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. 事实表通用结构 (带 updated_at 触发器以支持增量拉取)
+-- 2. 事实表通用结构 (带 updated_at 触发器支持增量)
 CREATE TABLE IF NOT EXISTS fact_shangzhi (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,

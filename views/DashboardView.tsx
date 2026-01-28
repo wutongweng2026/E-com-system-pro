@@ -5,7 +5,7 @@ import {
     ArrowUp, ArrowDown, Sparkles, Bot as BotIcon, ChevronRight, 
     ShieldAlert, PackageSearch, Flame, DatabaseZap, 
     Star, CalendarX, X, MousePointer2, SearchCode, ChevronLeft,
-    AlertTriangle, TrendingDown, Layers, Ban, Zap, RefreshCw, UploadCloud
+    AlertTriangle, TrendingDown, Layers, Ban, Zap, UploadCloud
 } from 'lucide-react';
 import { DB } from '../lib/db';
 import { ProductSKU, Shop } from '../lib/types';
@@ -186,7 +186,6 @@ const MainTrendVisual = ({ data, metricKey }: { data: DailyRecord[], metricKey: 
 
 export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], shops: Shop[], addToast: any }) => {
     const [isLoading, setIsLoading] = useState(true);
-    const [isSyncing, setIsSyncing] = useState(false);
     const [activeMetric, setActiveMetric] = useState<MetricKey>('gmv');
     const [rangeType, setRangeType] = useState<RangeType>('7d');
     const [customRange, setCustomRange] = useState({
@@ -346,20 +345,6 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
         fetchData();
     }, [rangeType, customRange, activeMetric, enabledSkusMap, shopIdToMode]);
 
-    const handleForceSync = async () => {
-        setIsSyncing(true);
-        addToast('info', '云端链路激活', '正在强制同步物理层资产...');
-        try {
-            await DB.syncPull();
-            await fetchData();
-            addToast('success', '同步完成', '云端镜像已更新至最新物理状态。');
-        } catch(e) {
-            addToast('error', '同步异常', '无法连接至云端主节点。');
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-
     return (
         <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
             {/* Command Header */}
@@ -367,24 +352,13 @@ export const DashboardView = ({ skus, shops, addToast }: { skus: ProductSKU[], s
                 <div className="space-y-1">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">版本号：v5.1.1</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest leading-none">版本号：v5.2.1</span>
                     </div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">战略指挥控制台</h1>
                     <p className="text-slate-400 font-bold text-sm tracking-wide">Strategic Performance Intelligence & AI Dashboard</p>
                 </div>
                 
                 <div className="flex items-center gap-4">
-                    {/* Manual Sync Button */}
-                    <button 
-                        onClick={handleForceSync}
-                        disabled={isSyncing}
-                        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-slate-200 text-slate-500 font-black text-xs hover:bg-slate-50 hover:text-brand hover:border-brand/30 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                        title="强制拉取云端最新数据"
-                    >
-                        <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''}/>
-                        {isSyncing ? '同步中...' : '强制同步'}
-                    </button>
-
                     <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
                         {[{id:'7d',l:'近7天'},{id:'30d',l:'近30天'},{id:'custom',l:'自定义'}].map(i => (
                             <button key={i.id} onClick={() => setRangeType(i.id as RangeType)} className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${rangeType === i.id ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}>{i.l}</button>
