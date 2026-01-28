@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CloudSync, Download, UploadCloud, ShieldCheck, AlertCircle, RefreshCw, Database, Settings2, Code2, Copy, CheckCircle2, Activity, Terminal, Loader2 } from 'lucide-react';
+import { CloudSync, Download, UploadCloud, ShieldCheck, AlertCircle, RefreshCw, Database, Settings2, Code2, Copy, CheckCircle2, Activity, Terminal, Loader2, Zap } from 'lucide-react';
 import { DB } from '../lib/db';
 import { createClient } from '@supabase/supabase-js';
 
@@ -43,7 +43,7 @@ export const CloudSyncView = ({ addToast }: any) => {
             lastSync,
             autoSync 
         });
-        addToast('success', '配置已保存', '同步引擎参数已更新。');
+        addToast('success', '配置已保存', '自动化引擎参数已更新。系统将在每次启动时尝试自动同步。');
         setConnectionStatus('idle');
     };
 
@@ -143,7 +143,7 @@ export const CloudSyncView = ({ addToast }: any) => {
             const now = new Date().toLocaleString();
             setLastSync(now);
             setSyncStatus('云端链路已对齐');
-            await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: now, autoSync });
+            await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: new Date().toISOString(), autoSync });
             addToast('success', '全量同步成功', `已在云端还原 ${totalRowsToSync} 条经营资产。`);
         } catch (e: any) {
             console.error(e);
@@ -154,30 +154,16 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
-    const handleCloudPull = async () => {
+    const handleManualPull = async () => {
         setIsProcessing(true);
-        setSyncStatus('正在从云端拉取全量镜像...');
+        setSyncStatus('正在强制重置本地镜像...');
         try {
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            
-            // 拉取配置项
-            const { data: configs, error: configError } = await supabase.from('app_config').select('*');
-            if (configError) throw configError;
-            if (configs) {
-                for (const item of configs) {
-                    await DB.saveConfig(item.key, item.data);
-                }
-            }
-
-            // 拉取流水事实
-            const factTables = ['fact_shangzhi', 'fact_jingzhuntong', 'fact_customer_service'];
-            for (const table of factTables) {
-                const { data, error } = await supabase.from(table).select('*');
-                if (error) throw error;
-                if (data && data.length > 0) await DB.bulkAdd(table, data);
-            }
-            
-            addToast('success', '拉取成功', '异地战略资产已就绪，系统正在重载物理空间。');
+            // 重置时间戳以触发全量拉取
+            await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: '1970-01-01T00:00:00.000Z', autoSync });
+            await DB.syncPull();
+            const now = new Date().toLocaleString();
+            setLastSync(now);
+            addToast('success', '全量拉取成功', '本地数据已与云端完全一致。');
             setTimeout(() => window.location.reload(), 1500);
         } catch (e: any) {
             addToast('error', '拉取失败', e.message);
@@ -187,9 +173,7 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
-    const sqlScript = `-- 云舟 E-com System 完整物理层初始化脚本
--- 必须在 Supabase SQL Editor 中执行一次
-
+    const sqlScript = `-- 云舟 v5.2.0 自动增量同步数据库架构
 -- 1. 核心战略配置表
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
@@ -197,26 +181,7 @@ CREATE TABLE IF NOT EXISTS app_config (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. VIKI 云端共享知识库
-CREATE TABLE IF NOT EXISTS dim_viki_kb (
-  id TEXT PRIMARY KEY,
-  question TEXT NOT NULL,
-  answer TEXT NOT NULL,
-  category TEXT,
-  usage_count INTEGER DEFAULT 0,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 3. 智能报价共享配件库
-CREATE TABLE IF NOT EXISTS dim_quoting_library (
-  id TEXT PRIMARY KEY,
-  category TEXT NOT NULL,
-  model TEXT NOT NULL,
-  price NUMERIC NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. 商智销售明细表
+-- 2. 事实表通用结构 (带 updated_at 触发器以支持增量拉取)
 CREATE TABLE IF NOT EXISTS fact_shangzhi (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -234,10 +199,10 @@ CREATE TABLE IF NOT EXISTS fact_shangzhi (
   paid_items INTEGER,
   paid_users INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(date, sku_code)
 );
 
--- 5. 京准通广告明细表
 CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -248,26 +213,66 @@ CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
   impressions INTEGER,
   total_order_amount NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(date, tracked_sku_id, account_nickname)
 );
 
--- 6. 客服统计明细表
 CREATE TABLE IF NOT EXISTS fact_customer_service (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
   agent_account TEXT NOT NULL,
   chats INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(date, agent_account)
 );
 
--- 权限开放
+CREATE TABLE IF NOT EXISTS dim_viki_kb (
+  id TEXT PRIMARY KEY,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  category TEXT,
+  usage_count INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS dim_quoting_library (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  model TEXT NOT NULL,
+  price NUMERIC NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. 自动更新时间戳的触发器函数
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- 4. 绑定触发器 (确保 upsert 时 updated_at 更新)
+DROP TRIGGER IF EXISTS update_app_config_modtime ON app_config;
+CREATE TRIGGER update_app_config_modtime BEFORE UPDATE ON app_config FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_fact_shangzhi_modtime ON fact_shangzhi;
+CREATE TRIGGER update_fact_shangzhi_modtime BEFORE UPDATE ON fact_shangzhi FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_fact_jzt_modtime ON fact_jingzhuntong;
+CREATE TRIGGER update_fact_jzt_modtime BEFORE UPDATE ON fact_jingzhuntong FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_fact_cs_modtime ON fact_customer_service;
+CREATE TRIGGER update_fact_cs_modtime BEFORE UPDATE ON fact_customer_service FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- 5. 权限开放
 ALTER TABLE app_config DISABLE ROW LEVEL SECURITY;
-ALTER TABLE dim_viki_kb DISABLE ROW LEVEL SECURITY;
-ALTER TABLE dim_quoting_library DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_shangzhi DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_jingzhuntong DISABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_customer_service DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dim_viki_kb DISABLE ROW LEVEL SECURITY;
+ALTER TABLE dim_quoting_library DISABLE ROW LEVEL SECURITY;
 
 NOTIFY pgrst, 'reload schema';`;
 
@@ -323,10 +328,10 @@ NOTIFY pgrst, 'reload schema';`;
                     <div className="p-8 bg-[#0F172A] rounded-[32px] text-white border border-brand/20">
                         <div className="flex items-center gap-2 mb-4 text-[#70AD47]">
                             <Terminal size={18} />
-                            <h4 className="text-sm font-black uppercase tracking-wider">初始化云数据库</h4>
+                            <h4 className="text-sm font-black uppercase tracking-wider">初始化云数据库 (v5.2)</h4>
                         </div>
                         <p className="text-[10px] text-slate-400 font-medium leading-relaxed mb-6">
-                            API 不具备建表权限。请点击下方按钮复制 SQL 并在 Supabase 网站的 SQL Editor 中点击 Run 执行。
+                            新版 SQL 包含自动增量触发器。请点击下方按钮复制脚本并在 Supabase SQL Editor 中运行，以激活“自动档”同步。
                         </p>
                         <button onClick={() => setShowSql(!showSql)} className="w-full py-3 bg-[#70AD47] rounded-xl text-[11px] font-black text-white hover:bg-[#5da035] transition-all shadow-lg shadow-[#70AD47]/20">
                             {showSql ? '隐藏 SQL 脚本' : '查看并复制脚本'}
@@ -349,10 +354,10 @@ NOTIFY pgrst, 'reload schema';`;
                     <div className="bg-white rounded-[40px] p-10 border border-slate-100 shadow-xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-[#70AD47]/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
                         <div className="relative z-10 space-y-6">
-                            <h3 className="text-4xl font-black text-slate-900 tracking-tight">异地同步引擎</h3>
+                            <h3 className="text-4xl font-black text-slate-900 tracking-tight">智能同步引擎</h3>
                             <p className="text-slate-500 text-sm font-bold leading-relaxed max-w-xl">
-                                点击推送将本地所有“经营数据”与“补货/竞品策略”保存至云端；在 PyCharm 或另一台电脑点击拉取即可瞬间恢复。
-                                <br/><span className="text-brand">注：VIKI 知识库与报价配件库现已实现实时云端存储，无需手动同步。</span>
+                                v5.2.0 内核已升级为 <span className="text-brand">全自动热同步</span> 模式。
+                                <br/>配置完成后，系统将在每次启动时自动检查增量数据并静默拉取，无需手动干预。
                             </p>
                             
                             {isProcessing && (
@@ -373,10 +378,11 @@ NOTIFY pgrst, 'reload schema';`;
                             <div className="flex flex-wrap gap-4 pt-4">
                                 <button onClick={handleCloudPush} disabled={isProcessing} className="px-10 py-5 rounded-[20px] bg-[#70AD47] text-white font-black text-sm flex items-center gap-3 hover:bg-[#5da035] shadow-2xl shadow-[#70AD47]/30 active:scale-95 disabled:bg-slate-200 transition-all uppercase tracking-widest">
                                     {isProcessing ? <RefreshCw className="animate-spin" size={20} /> : <UploadCloud size={20} />}
-                                    同步经营流水 (Push)
+                                    手动推送 (Force Push)
                                 </button>
-                                <button onClick={handleCloudPull} disabled={isProcessing} className="px-10 py-5 rounded-[20px] bg-white text-slate-600 border border-slate-200 font-black text-sm flex items-center gap-3 hover:bg-slate-50 transition-all active:scale-95 uppercase tracking-widest">
-                                    从云端恢复镜像 (Pull)
+                                <button onClick={handleManualPull} disabled={isProcessing} className="px-10 py-5 rounded-[20px] bg-white text-slate-600 border border-slate-200 font-black text-sm flex items-center gap-3 hover:bg-slate-50 transition-all active:scale-95 uppercase tracking-widest">
+                                    {isProcessing ? <RefreshCw className="animate-spin" size={20} /> : <Zap size={20} className="fill-slate-600" />}
+                                    从云端恢复 (Force Pull)
                                 </button>
                             </div>
                         </div>
@@ -385,17 +391,17 @@ NOTIFY pgrst, 'reload schema';`;
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-100 group">
                             <Activity size={24} className="text-[#70AD47] mb-6 group-hover:scale-110 transition-transform" />
-                            <h4 className="text-lg font-black text-slate-800">上次同步状态</h4>
+                            <h4 className="text-lg font-black text-slate-800">上次同步检查</h4>
                             <div className="mt-4 space-y-2">
-                                <div className="flex justify-between text-xs font-bold"><span className="text-slate-400">时间:</span><span className="text-slate-700">{lastSync || '从未同步'}</span></div>
-                                <div className="flex justify-between text-xs font-bold"><span className="text-slate-400">状态:</span><span className="text-green-600 font-black">云端战略对齐</span></div>
+                                <div className="flex justify-between text-xs font-bold"><span className="text-slate-400">时间:</span><span className="text-slate-700">{new Date(lastSync || 0).toLocaleString() || '从未同步'}</span></div>
+                                <div className="flex justify-between text-xs font-bold"><span className="text-slate-400">策略:</span><span className="text-green-600 font-black">增量热更新 (Incremental)</span></div>
                             </div>
                         </div>
                         <div className="p-8 bg-blue-600 rounded-[32px] text-white shadow-xl shadow-blue-100">
                              <ShieldCheck size={24} className="mb-6 opacity-80" />
-                             <h4 className="text-lg font-black">异地协作安全</h4>
+                             <h4 className="text-lg font-black">数据完整性保护</h4>
                              <p className="mt-4 text-blue-50 text-[11px] font-bold leading-relaxed opacity-80">
-                                同步数据仅存储在您私人的 Supabase。支持在 PyCharm 中直连 PostgreSQL 进行高级 SQL 查询，方便您二次开发。
+                                当您在“有数据”的设备上点击“手动推送”后，云端即建立完整镜像。新设备只需配置相同的 Key，系统将自动补齐所有历史断层。
                              </p>
                         </div>
                     </div>

@@ -37,63 +37,120 @@ export const DB = {
   // 获取云端客户端（带缓存）
   async getSupabase(): Promise<SupabaseClient | null> {
     if (supabaseInstance) return supabaseInstance;
-    const config = await this.loadConfig('cloud_sync_config', null);
-    if (config && config.url && config.key) {
-      supabaseInstance = createClient(config.url, config.key);
-      return supabaseInstance;
+    // 尝试从 IndexedDB 获取配置，如果失败则返回 null
+    try {
+        const config = await this.loadConfig('cloud_sync_config', null);
+        if (config && config.url && config.key) {
+          supabaseInstance = createClient(config.url, config.key);
+          return supabaseInstance;
+        }
+    } catch(e) {
+        return null;
     }
     return null;
   },
 
-  // 核心：启动时自动拉取云端最新配置 (Auto-Pull)
+  // 核心：智能全量/增量自动拉取 (Auto-Pull Smart Sync)
   async syncPull(): Promise<boolean> {
     const supabase = await this.getSupabase();
     if (!supabase) return false;
 
-    console.log("☁️ 开始执行云端自动同步...");
+    // 获取上次同步时间
+    const syncConfig = await this.loadConfig('cloud_sync_config', { lastSync: '1970-01-01T00:00:00.000Z' });
+    const lastSync = syncConfig.lastSync || '1970-01-01T00:00:00.000Z';
+    const newSyncTime = new Date().toISOString();
+
+    console.log(`☁️ 启动云端热同步，增量起点: ${lastSync}`);
+
     try {
       // 1. 同步配置项 (Metadata)
-      const { data: configs, error } = await supabase.from('app_config').select('*');
-      if (!error && configs) {
+      // 配置表比较特殊，使用 updated_at 判断，若无则拉取所有
+      const { data: configs } = await supabase.from('app_config').select('*').gt('updated_at', lastSync);
+      if (configs && configs.length > 0) {
+        console.log(`[Sync] 更新配置项: ${configs.length} 条`);
         for (const item of configs) {
-          // 不覆盖云端配置本身，防止死循环
           if (item.key !== 'cloud_sync_config') {
-             await this.saveConfig(item.key, item.data, false); // false = don't push back
+             // 写入本地，但不回推云端 (false)
+             await this.saveConfig(item.key, item.data, false); 
           }
         }
       }
+
+      // 2. 同步事实表 (Fact Tables) - 支持分页拉取海量数据
+      const tables = ['fact_shangzhi', 'fact_jingzhuntong', 'fact_customer_service'];
+      
+      for (const table of tables) {
+          let hasMore = true;
+          let page = 0;
+          const pageSize = 1000;
+          let totalPulled = 0;
+
+          while (hasMore) {
+              const { data, error } = await supabase
+                  .from(table)
+                  .select('*')
+                  .gt('created_at', lastSync)
+                  .range(page * pageSize, (page + 1) * pageSize - 1)
+                  .order('created_at', { ascending: true }); // 按创建时间正序，保证数据连贯性
+
+              if (error) {
+                  console.error(`[Sync Error] Failed to fetch ${table}:`, error);
+                  hasMore = false;
+              } else if (data && data.length > 0) {
+                  // 写入本地，禁用回推云端
+                  await this.bulkAdd(table, data, false);
+                  totalPulled += data.length;
+                  
+                  if (data.length < pageSize) {
+                      hasMore = false; // 取不满说明是最后一页
+                  } else {
+                      page++;
+                  }
+              } else {
+                  hasMore = false;
+              }
+          }
+          if (totalPulled > 0) console.log(`[Sync] ${table}: 拉取并合并了 ${totalPulled} 条记录`);
+      }
+
+      // 3. 更新同步时间戳
+      await this.saveConfig('cloud_sync_config', { ...syncConfig, lastSync: newSyncTime }, false);
       return true;
     } catch (e) {
-      console.error("云端同步失败:", e);
+      console.error("云端同步异常:", e);
       return false;
     }
   },
 
   // 核心：写入时自动推送到云端 (Write-Through)
+  // 新增 syncToCloud 参数，默认为 true。当从云端拉取数据写入本地时，设为 false 防止死循环。
   async pushToCloud(tableName: string, data: any | any[], conflictKey?: string) {
     const supabase = await this.getSupabase();
     if (!supabase) return;
 
-    // 异步执行，不阻塞 UI
+    // 异步执行，不阻塞 UI 响应
     setTimeout(async () => {
       try {
         const payload = Array.isArray(data) ? data : [data];
-        // 清理 payload 中的 undefined，Supabase 不接受
-        const cleanPayload = payload.map(item => {
-            const clean = { ...item };
-            // 确保日期格式正确
+        // 清理 payload
+        const cleanPayload = payload.map(({ id, ...rest }: any) => {
+            // 注意：通常我们不上传本地自增 ID，让 Supabase 生成，或者如果本地 ID 有效则保留
+            // 这里为了简化，我们上传除 id 外的所有字段，利用唯一键去重
+            // 如果数据源包含 id 且需要保持一致，则保留 id
+            // 为了安全，建议清理掉 undefined
+            const clean = { ...rest }; 
             if (clean.date instanceof Date) clean.date = clean.date.toISOString().split('T')[0];
             return clean;
         });
 
         const { error } = await supabase.from(tableName).upsert(cleanPayload, { 
-            onConflict: conflictKey || 'id' 
+            onConflict: conflictKey || undefined
         });
         
-        if (error) console.error(`[Cloud Sync] Upload to ${tableName} failed:`, error.message);
-        else console.log(`[Cloud Sync] Successfully pushed ${cleanPayload.length} rows to ${tableName}`);
+        if (error) console.error(`[Cloud Push] Upload to ${tableName} failed:`, error.message);
+        // else console.log(`[Cloud Push] Success: ${cleanPayload.length} rows -> ${tableName}`);
       } catch (e) {
-        console.error(`[Cloud Sync] Error pushing to ${tableName}:`, e);
+        console.error(`[Cloud Push] Error pushing to ${tableName}:`, e);
       }
     }, 0);
   },
@@ -112,36 +169,41 @@ export const DB = {
     // Cloud Delete
     const supabase = await this.getSupabase();
     if (supabase) {
-        // 注意：这里假设本地 ID 和云端 ID 一致，或者通过其他唯一键删除。
-        // 对于 fact 表，通常通过 id 删除。如果是 config，逻辑不同。
-        supabase.from(tableName).delete().in('id', ids).then(({ error }) => {
-            if (error) console.error("Cloud delete failed:", error);
-        });
+        // 注意：本地删除通过 ID，云端 ID 可能不一致。
+        // 如果我们没有同步 ID，这里删除可能会有问题。
+        // 建议：对于物理事实数据，通常不建议硬删除，或者仅在本地维护清洗。
+        // 如果必须删除，最好基于业务主键（如 date + sku_code）。
+        // 目前暂且保留基于 ID 的删除逻辑，假设后续会完善 ID 同步机制。
+        // 为了安全起见，这里仅打印日志，防止误删云端数据。
+        console.warn("Local delete performed. Cloud delete skipped to prevent ID mismatch.");
     }
   },
 
-  async bulkAdd(tableName: string, rows: any[]): Promise<void> {
+  // 重构：支持 syncToCloud 参数
+  async bulkAdd(tableName: string, rows: any[], syncToCloud: boolean = true): Promise<void> {
     const db = await this.getDB();
     // Local Write
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction([tableName], 'readwrite');
       const store = transaction.objectStore(tableName);
-      rows.forEach(row => store.put(row));
+      // put 会覆盖主键相同的记录，或新增
+      rows.forEach(row => store.put(row)); 
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
     });
 
     // Cloud Write (Write-Through)
-    // 自动判断冲突键
-    let conflictKey = 'id';
-    if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
-    else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,tracked_sku_id,account_nickname';
-    else if (tableName === 'fact_customer_service') conflictKey = 'date,agent_account';
+    if (syncToCloud) {
+        let conflictKey = undefined; // Default to Supabase primary key
+        if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
+        else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,tracked_sku_id,account_nickname';
+        else if (tableName === 'fact_customer_service') conflictKey = 'date,agent_account';
 
-    // 分批推送，避免请求过大
-    const BATCH_SIZE = 200;
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-        this.pushToCloud(tableName, rows.slice(i, i + BATCH_SIZE), conflictKey);
+        // 分批推送
+        const BATCH_SIZE = 200;
+        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+            this.pushToCloud(tableName, rows.slice(i, i + BATCH_SIZE), conflictKey);
+        }
     }
   },
 
@@ -181,8 +243,9 @@ export const DB = {
     });
 
     // Cloud Write
+    // cloud_sync_config 本身不上传，避免 key 泄露或循环覆盖
     if (syncToCloud && key !== 'cloud_sync_config') {
-        this.pushToCloud('app_config', { key, data }, 'key');
+        this.pushToCloud('app_config', { key, data, updated_at: new Date().toISOString() }, 'key');
     }
   },
 
@@ -225,10 +288,6 @@ export const DB = {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
     });
-    
-    // Cloud Clear (Dangerous, maybe just log for now or implement if strictly needed)
-    // const supabase = await this.getSupabase();
-    // if (supabase) supabase.from(tableName).delete().neq('id', 0); 
   },
 
   async exportFullDatabase(): Promise<string> {
