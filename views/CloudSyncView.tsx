@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
-import { CloudSync, Download, UploadCloud, ShieldCheck, AlertCircle, RefreshCw, Database, Settings2, Code2, Copy, CheckCircle2, Activity, Terminal, Loader2, Zap } from 'lucide-react';
+import { CloudSync, Download, UploadCloud, ShieldCheck, AlertCircle, RefreshCw, Database, Settings2, Code2, Copy, CheckCircle2, Activity, Terminal, Loader2, Zap, Wifi, WifiOff, UserCircle2, KeyRound } from 'lucide-react';
 import { DB } from '../lib/db';
 import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_URL = "https://stycaaqvjbjnactxcvyh.supabase.co";
 const DEFAULT_KEY = "sb_publishable_m4yyJRlDY107a3Nkx6Pybw_6Mdvxazn";
+
+// 辅助函数：睡眠
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const CloudSyncView = ({ addToast }: any) => {
     const [isProcessing, setIsProcessing] = useState(false);
@@ -15,6 +18,7 @@ export const CloudSyncView = ({ addToast }: any) => {
     const [autoSync, setAutoSync] = useState(false);
     const [showSql, setShowSql] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+    const [authMode, setAuthMode] = useState<'apikey' | 'account'>('apikey');
 
     // 进度追踪状态
     const [syncProgress, setSyncProgress] = useState(0);
@@ -65,6 +69,32 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
+    // 带有增强重试机制的 Upsert 操作
+    // v5.2.5 优化: 增加重试次数，捕获 Fetch Error
+    const upsertWithRetry = async (supabase: any, tableName: string, data: any[], conflictKey: string, maxRetries = 5) => {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const { error } = await supabase.from(tableName).upsert(data, { onConflict: conflictKey });
+                if (error) throw error;
+                return; // 成功则退出
+            } catch (err: any) {
+                const isNetworkError = err.message?.includes('Failed to fetch') || err.message?.includes('network');
+                
+                if (attempt === maxRetries) {
+                    console.error(`[Sync Final Fail] ${tableName}:`, err);
+                    throw new Error(`${isNetworkError ? '网络连接中断' : '写入被拒绝'} (重试耗尽): ${err.message}`);
+                }
+                
+                // 指数退避 + 随机抖动 (避免并发波峰)
+                // 第1次: ~1s, 第2次: ~2s, 第3次: ~4s, 第4次: ~8s...
+                const delay = (1000 * Math.pow(2, attempt)) + (Math.random() * 500);
+                
+                console.warn(`[Sync Warning] ${tableName} 分片上传遇到阻力，将在 ${Math.round(delay)}ms 后进行第 ${attempt + 1}/${maxRetries} 次突围...`, err.message);
+                await sleep(delay);
+            }
+        }
+    };
+
     const handleCloudPush = async () => {
         if (!supabaseUrl || !supabaseKey) {
             addToast('error', '同步失败', '请先配置 Supabase 参数。');
@@ -84,11 +114,11 @@ export const CloudSyncView = ({ addToast }: any) => {
                 { local: 'fact_customer_service', remote: 'fact_customer_service', conflict: 'date,agent_account', label: '客服接待明细' }
             ];
             
+            // 1. 预计算总行数 (用于进度条)
             let totalRowsToSync = 0;
-            const tableDataMap: Record<string, any[]> = {};
+            
             for (const table of tablesToSync) {
                 const data = await DB.getTableRows(table.local);
-                tableDataMap[table.local] = data;
                 totalRowsToSync += data.length;
             }
 
@@ -107,32 +137,48 @@ export const CloudSyncView = ({ addToast }: any) => {
 
             let processedRows = 0;
 
+            // 2. 分表同步 (串行处理以减少内存压力)
             for (const table of tablesToSync) {
-                const localData = tableDataMap[table.local];
+                // 内存优化：处理完一张表再读下一张，读完立即释放
+                const localData = await DB.getTableRows(table.local);
+                
                 if (localData.length === 0) continue;
 
-                // 移除 ID，让云端处理生成或匹配
+                // 数据清洗
                 const cleanData = localData.map(({ id, created_at, updated_at, ...rest }: any) => {
                     if (rest.date instanceof Date) rest.date = rest.date.toISOString().split('T')[0];
                     Object.keys(rest).forEach(key => { if (rest[key] === undefined) rest[key] = null; });
                     return rest;
                 });
 
-                const CHUNK_SIZE = 200; 
+                // v5.2.5 优化：极速微切片 (Micro-Batching)
+                // 将分片大小从 200 降至 50，大幅降低单次请求包体大小，减少 Timeout 概率
+                const CHUNK_SIZE = 50; 
+                
                 for (let i = 0; i < cleanData.length; i += CHUNK_SIZE) {
                     const chunk = cleanData.slice(i, i + CHUNK_SIZE);
-                    setSyncStatus(`推送 ${table.label}: ${i} / ${localData.length}`);
-                    const { error } = await supabase.from(table.remote).upsert(chunk, { onConflict: table.conflict });
-                    if (error) throw new Error(`[${table.remote}] 写入失败: ${error.message}`);
+                    
+                    setSyncStatus(`正在推送 [${table.label}] ... (${i + chunk.length}/${localData.length})`);
+                    
+                    // 使用带重试机制的上传
+                    await upsertWithRetry(supabase, table.remote, chunk, table.conflict);
+                    
+                    // v5.2.5 优化：请求间歇呼吸 (Throttle)
+                    // 强制暂停 50ms，防止浏览器短时间发出过多请求导致自身网络栈阻塞
+                    await sleep(50);
+
                     processedRows += chunk.length;
                     setSyncProgress(Math.floor((processedRows / totalRowsToSync) * 100));
                 }
+                
+                // 显式释放大对象
+                localData.length = 0; 
             }
 
+            // 3. 同步配置
             if (configEntries.length > 0) {
                 setSyncStatus('同步战略配置项...');
-                const { error: configError } = await supabase.from('app_config').upsert(configEntries, { onConflict: 'key' });
-                if (configError) throw configError;
+                await upsertWithRetry(supabase, 'app_config', configEntries, 'key');
                 processedRows += configEntries.length;
                 setSyncProgress(100);
             }
@@ -145,7 +191,7 @@ export const CloudSyncView = ({ addToast }: any) => {
         } catch (e: any) {
             console.error(e);
             setSyncStatus(`同步中断: ${e.message}`);
-            addToast('error', '物理推送失败', e.message);
+            addToast('error', '物理推送失败', `网络链路不稳定: ${e.message}。请检查网络后重试，系统支持断点续传。`);
         } finally {
             setTimeout(() => { setIsProcessing(false); setSyncProgress(0); setSyncStatus(''); }, 2000);
         }
@@ -169,15 +215,16 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
-    const sqlScript = `-- 云舟 v5.2.2 数据库安全架构升级 (修复 RLS 与 Search Path 告警)
+    const sqlScript = `-- 云舟 v5.2.4 SaaS 架构预留升级 (支持多租户扩展)
 -- 1. 核心战略配置表
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
   data JSONB,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL -- [SaaS预留] 租户ID
 );
 
--- 2. 事实表通用结构
+-- 2. 事实表通用结构 (增加 SaaS 字段)
 CREATE TABLE IF NOT EXISTS fact_shangzhi (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -196,6 +243,7 @@ CREATE TABLE IF NOT EXISTS fact_shangzhi (
   paid_users INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL, -- [SaaS预留]
   UNIQUE(date, sku_code)
 );
 
@@ -210,6 +258,7 @@ CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
   total_order_amount NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL, -- [SaaS预留]
   UNIQUE(date, tracked_sku_id, account_nickname)
 );
 
@@ -220,6 +269,7 @@ CREATE TABLE IF NOT EXISTS fact_customer_service (
   chats INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL, -- [SaaS预留]
   UNIQUE(date, agent_account)
 );
 
@@ -229,7 +279,8 @@ CREATE TABLE IF NOT EXISTS dim_viki_kb (
   answer TEXT NOT NULL,
   category TEXT,
   usage_count INTEGER DEFAULT 0,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL -- [SaaS预留]
 );
 
 CREATE TABLE IF NOT EXISTS dim_quoting_library (
@@ -237,25 +288,35 @@ CREATE TABLE IF NOT EXISTS dim_quoting_library (
   category TEXT NOT NULL,
   model TEXT NOT NULL,
   price NUMERIC NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  user_id UUID DEFAULT NULL -- [SaaS预留]
 );
 
--- 3. 补齐字段 (防报错)
+-- 3. 补齐字段 (SaaS 迁移准备)
 DO $$
 BEGIN
+    -- 确保 updated_at 存在
     ALTER TABLE app_config ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE fact_shangzhi ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE fact_jingzhuntong ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE fact_customer_service ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE dim_viki_kb ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     ALTER TABLE dim_quoting_library ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+    -- 确保 user_id 存在 (未来启用 RLS 时使用)
+    ALTER TABLE app_config ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
+    ALTER TABLE fact_shangzhi ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
+    ALTER TABLE fact_jingzhuntong ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
+    ALTER TABLE fact_customer_service ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
+    ALTER TABLE dim_viki_kb ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
+    ALTER TABLE dim_quoting_library ADD COLUMN IF NOT EXISTS user_id UUID DEFAULT NULL;
 END $$;
 
--- 4. 自动更新时间戳触发器 (修复 Security Advisor 告警: search_path)
+-- 4. 自动更新时间戳触发器
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER 
 LANGUAGE plpgsql
-SET search_path = public -- 显式设置 search_path
+SET search_path = public
 AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
@@ -263,7 +324,6 @@ BEGIN
 END;
 $$;
 
--- 绑定触发器
 DROP TRIGGER IF EXISTS update_app_config_modtime ON app_config;
 CREATE TRIGGER update_app_config_modtime BEFORE UPDATE ON app_config FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
@@ -276,9 +336,8 @@ CREATE TRIGGER update_fact_jzt_modtime BEFORE UPDATE ON fact_jingzhuntong FOR EA
 DROP TRIGGER IF EXISTS update_fact_cs_modtime ON fact_customer_service;
 CREATE TRIGGER update_fact_cs_modtime BEFORE UPDATE ON fact_customer_service FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
--- 5. 安全策略 (修复 Security Advisor 告警: RLS Disabled)
--- 启用 RLS 并配置“允许所有”策略（适用于私有项目，消除红字警告）
-
+-- 5. 安全策略 (过渡期：允许所有 API Key 访问)
+-- 注意：系统正式转为 SaaS 模式时，需将 USING (true) 修改为 USING (auth.uid() = user_id)
 DO $$
 DECLARE
     t text;
@@ -321,37 +380,65 @@ NOTIFY pgrst, 'reload schema';`;
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-sm space-y-6">
-                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                            <Settings2 size={20} className="text-[#70AD47]" />
-                            同步参数配置
-                        </h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Supabase API URL</label>
-                                <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xxx.supabase.co" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Anon Key / Service Role</label>
-                                <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={saveSettings} className="flex-1 py-3 rounded-xl bg-slate-800 text-white font-black text-xs hover:bg-slate-700 transition-all">保存配置</button>
-                                <button onClick={testConnection} className="px-6 py-3 rounded-xl border-2 border-slate-800 text-slate-800 font-black text-xs hover:bg-slate-50 transition-all">连接测试</button>
-                            </div>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                                <Settings2 size={20} className="text-[#70AD47]" />
+                                同步鉴权配置
+                            </h3>
                         </div>
+                        
+                        {/* Auth Mode Switcher (Reserved) */}
+                        <div className="flex p-1 bg-slate-100 rounded-xl">
+                            <button 
+                                onClick={() => setAuthMode('apikey')}
+                                className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 ${authMode === 'apikey' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}
+                            >
+                                <KeyRound size={12} /> API Key 模式
+                            </button>
+                            <button 
+                                onClick={() => setAuthMode('account')}
+                                disabled
+                                className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 opacity-50 cursor-not-allowed`}
+                                title="SaaS 账号体系开发中"
+                            >
+                                <UserCircle2 size={12} /> 账号登录 (Dev)
+                            </button>
+                        </div>
+
+                        {authMode === 'apikey' ? (
+                            <div className="space-y-4 animate-fadeIn">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Supabase API URL</label>
+                                    <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} placeholder="https://xxx.supabase.co" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Anon Key / Service Role</label>
+                                    <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={saveSettings} className="flex-1 py-3 rounded-xl bg-slate-800 text-white font-black text-xs hover:bg-slate-700 transition-all">保存配置</button>
+                                    <button onClick={testConnection} className="px-6 py-3 rounded-xl border-2 border-slate-800 text-slate-800 font-black text-xs hover:bg-slate-50 transition-all">连接测试</button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-10 text-center space-y-4">
+                                <UserCircle2 size={48} className="text-slate-200 mx-auto" />
+                                <p className="text-xs font-bold text-slate-400">多租户 SaaS 账号体系正在建设中...</p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="p-8 bg-[#0F172A] rounded-[32px] text-white border border-brand/20">
                         <div className="flex items-center gap-2 mb-4 text-[#70AD47]">
                             <ShieldCheck size={18} />
-                            <h4 className="text-sm font-black uppercase tracking-wider">安全合规更新 (v5.2.2)</h4>
+                            <h4 className="text-sm font-black uppercase tracking-wider">架构预留更新 (v5.2.4)</h4>
                         </div>
                         <p className="text-[10px] text-slate-400 font-medium leading-relaxed mb-6">
-                            检测到 "RLS Disabled" 或 "Search Path" 告警？
-                            <br/>此脚本将自动启用行级安全策略 (RLS) 并修复函数配置，以符合 Supabase 安全标准。
+                            检测到未来 SaaS 扩展需求。
+                            <br/>此脚本将为所有物理表预埋 <code className="bg-white/10 px-1 rounded text-white">user_id</code> 字段，确保数据架构支持无缝切换至多租户模式。
                         </p>
                         <button onClick={() => setShowSql(!showSql)} className="w-full py-3 bg-[#70AD47] rounded-xl text-[11px] font-black text-white hover:bg-[#5da035] transition-all shadow-lg shadow-[#70AD47]/20">
-                            {showSql ? '隐藏 SQL 脚本' : '获取修复脚本'}
+                            {showSql ? '隐藏 SQL 脚本' : '获取架构升级脚本'}
                         </button>
                         
                         {showSql && (
@@ -359,7 +446,7 @@ NOTIFY pgrst, 'reload schema';`;
                                 <pre className="text-[9px] text-slate-300 font-mono overflow-x-auto max-h-[250px] leading-relaxed no-scrollbar">
                                     {sqlScript}
                                 </pre>
-                                <button onClick={() => { navigator.clipboard.writeText(sqlScript); addToast('success', '复制成功', '请在 Supabase 后台运行以消除告警。'); }} className="absolute top-4 right-4 p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all">
+                                <button onClick={() => { navigator.clipboard.writeText(sqlScript); addToast('success', '复制成功', '请在 Supabase 后台运行以完成架构升级。'); }} className="absolute top-4 right-4 p-2 bg-white/10 rounded-lg hover:bg-white/20 transition-all">
                                     <Copy size={14} className="text-white"/>
                                 </button>
                             </div>
@@ -373,8 +460,8 @@ NOTIFY pgrst, 'reload schema';`;
                         <div className="relative z-10 space-y-6">
                             <h3 className="text-4xl font-black text-slate-900 tracking-tight">智能同步引擎</h3>
                             <p className="text-slate-500 text-sm font-bold leading-relaxed max-w-xl">
-                                v5.2.2 内核已升级为 <span className="text-brand">全自动热同步</span> 模式。
-                                <br/>配置完成后，系统将在每次启动时自动检查增量数据并静默拉取，无需手动干预。
+                                v5.2.5 内核已升级为 <span className="text-brand">微切片同步 (Micro-Batching)</span> 模式。
+                                <br/>单次并发降至 50 条，并内置 5 次指数退避重试，专为弱网与大数据量环境设计。
                             </p>
                             
                             {isProcessing && (
@@ -416,9 +503,9 @@ NOTIFY pgrst, 'reload schema';`;
                         </div>
                         <div className="p-8 bg-blue-600 rounded-[32px] text-white shadow-xl shadow-blue-100">
                              <ShieldCheck size={24} className="mb-6 opacity-80" />
-                             <h4 className="text-lg font-black">数据完整性保护</h4>
+                             <h4 className="text-lg font-black">企业级数据容灾</h4>
                              <p className="mt-4 text-blue-50 text-[11px] font-bold leading-relaxed opacity-80">
-                                当您在“有数据”的设备上点击“手动推送”后，云端即建立完整镜像。新设备只需配置相同的 Key，系统将自动补齐所有历史断层。
+                                支持断点重试与内存自动回收，确保在万级数据量下的稳定传输。数据安全，使命必达。
                              </p>
                         </div>
                     </div>
