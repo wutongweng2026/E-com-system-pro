@@ -117,14 +117,14 @@ export const AIAssistantView = ({ skus, shops, addToast }: { skus: ProductSKU[],
     return (
         <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
             {/* Header - Standardized 3-line format */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">神经网络服务模型已就绪</span>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">神经网络服务模型已就绪</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase text-left">智能客服助手</h1>
-                    <p className="text-slate-400 font-bold text-sm tracking-wide text-left">Neural Customer Service Engine & Strategy Knowledge Base</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">智能客服助手</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">AI Customer Service & Knowledge Base Manager</p>
                 </div>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
                     <button onClick={() => setActiveTab('chat')} className={`px-10 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'chat' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}><MessageCircle size={14}/> 智能会话工作台</button>

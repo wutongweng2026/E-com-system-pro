@@ -127,14 +127,14 @@ export const AISalesForecastView = ({ skus }: { skus: ProductSKU[] }) => {
     return (
         <div className="p-8 md:p-12 w-full animate-fadeIn space-y-10 min-h-screen bg-[#F8FAFC]">
             {/* Header - Standardized 3-line format */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-10">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">时序算法预测模型就绪</span>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">时序算法预测模型就绪</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">销售预测中心</h1>
-                    <p className="text-slate-400 font-bold text-sm tracking-wide">Neural Demand Forecasting & Inventory Projection Hub</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">销售预测中心</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Neural Demand Forecasting & Inventory Projection Hub</p>
                 </div>
             </div>
 

@@ -633,16 +633,16 @@ export const SKUManagementView = ({
             <input type="file" ref={agentFileInputRef} onChange={(e) => handleFileSelected(e, 'agent')} accept=".xlsx, .xls" className="hidden" />
 
             {/* Command Header - Standardized */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 border-b border-slate-200 pb-10">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层资产链路已建立</span>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层资产链路已建立</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                         {activeTab === 'sku' ? 'SKU 资产名录' : activeTab === 'shop' ? '核心店铺名录' : activeTab === 'agent' ? '客服席位管控' : '分层清单实验室'}
                     </h1>
-                    <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Master Data Management & Assets Governance Hub</p>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Physical Master Data Management & Assets Governance Hub</p>
                 </div>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
                     {[ {id:'sku',l:'SKU资产'}, {id:'shop',l:'店铺名录'}, {id:'agent',l:'客服席位'}, {id:'list',l:'分层清单'} ].map(t => (

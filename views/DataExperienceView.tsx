@@ -290,14 +290,14 @@ export const DataExperienceView = ({ factTables, schemas, shops, onUpdateSchema,
             <EditFieldModal isOpen={!!editingField} onClose={() => setEditingField(null)} onConfirm={(f) => { onUpdateSchema(selectedSchemaType, currentSchema.map(x => x.key === f.key ? f : x)); addToast('success', '修订成功', `映射 [${f.label}] 已更新。`); setEditingField(null); }} field={editingField} />
 
             {/* Command Header - Standardized */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-slate-200 pb-10">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-[0.3em] leading-none">物理层治理模式已激活</span>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">物理层治理模式已激活</span>
                     </div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">底层数据治理中心</h1>
-                    <p className="text-slate-400 font-bold text-sm tracking-wide">Physical Data Cleansing & Meta-Architecture Management</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">底层数据治理中心</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Physical Data Cleansing & Meta-Architecture Management</p>
                 </div>
                 <div className="flex bg-slate-200/50 p-1.5 rounded-[22px] shadow-inner border border-slate-200">
                     <button onClick={() => setActiveTab('preview')} className={`px-10 py-3 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'preview' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-slate-500 hover:text-slate-700'}`}><Eye size={14}/> 数据物理清洗</button>

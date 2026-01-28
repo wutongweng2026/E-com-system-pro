@@ -15,7 +15,8 @@ const getApiKey = () => {
 const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export const AI_CONFIG = {
-    model: 'gemini-3-flash-preview', 
+    // 升级核心大脑为 Pro 版本，以匹配 v5.0.2 的复杂战略分析需求
+    model: 'gemini-3-pro-preview', 
     imageModel: 'gemini-2.5-flash-image'
 };
 

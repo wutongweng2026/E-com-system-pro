@@ -282,7 +282,7 @@ export const AISmartReplenishmentView = ({ skus, shangzhiData, shops, onUpdateSK
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
                         <span className="text-[10px] font-black text-brand uppercase tracking-widest">动态供应链链路审计中</span>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">AI 供应链决策中心</h1>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight uppercase">AI 供应链决策中心</h1>
                     <p className="text-slate-500 font-medium text-xs mt-1 opacity-60">Demand Forecasting & Intelligent Inventory Replenishment Hub</p>
                 </div>
             </div>
