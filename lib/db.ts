@@ -1,7 +1,7 @@
 
 /**
  * Cloud-Native Database Adapter
- * v5.3.2 Upgrade: Robust Memory Caching for Environment Compatibility
+ * v5.3.3 Upgrade: Environment Variable Auto-Discovery
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
@@ -11,36 +11,48 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // 单例缓存
 let supabaseInstance: SupabaseClient | null = null;
 
-// 内存级配置缓存 (解决部分环境下 localStorage 读取延迟或失效的问题)
+// 内存级配置缓存
 let memoryCloudConfig: { url: string; key: string } | null = null;
 
-// 获取客户端 (优先读取内存，其次 localStorage)
+// 获取客户端 (优先读取内存 -> 环境变量 -> 本地存储)
 const getClient = (): SupabaseClient | null => {
     // 1. 如果已有活跃实例，直接返回
     if (supabaseInstance) return supabaseInstance;
 
-    // 2. 尝试获取配置 (内存 -> 本地存储)
+    // 2. 尝试获取配置
     let config = memoryCloudConfig;
 
+    // 2.1 如果内存没有，检查环境变量 (Vercel Deployment)
+    // 这是最稳定的方式，不需要用户手动输入
+    if (!config) {
+        const envUrl = process.env.SUPABASE_URL;
+        const envKey = process.env.SUPABASE_KEY;
+        if (envUrl && envKey) {
+            config = { url: envUrl.trim(), key: envKey.trim() };
+            memoryCloudConfig = config; // 存入内存缓存
+            console.log("[Yunzhou DB] Auto-connected via Environment Variables.");
+        }
+    }
+
+    // 2.2 如果环境变量也没有，尝试 localStorage (手动配置模式)
     if (!config) {
         try {
             const raw = localStorage.getItem('yunzhou_cloud_config');
             if (raw) {
                 const parsed = JSON.parse(raw);
                 if (parsed.url && parsed.key) {
-                    // 修正：去除可能存在的空格
                     config = { url: parsed.url.trim(), key: parsed.key.trim() };
-                    // 回写到内存缓存，供后续调用
                     memoryCloudConfig = config;
                 }
             }
         } catch (e) {
-            console.error("[Yunzhou DB] Config Load Error:", e);
+            console.error("[Yunzhou DB] LocalStorage Config Load Error:", e);
         }
     }
 
+    // 3. 最终检查
     if (!config || !config.url || !config.key) {
-        console.warn("[Yunzhou DB] No valid cloud config found in Memory or LocalStorage.");
+        // 静默失败，让 UI 层处理提示
         return null;
     }
 
@@ -57,7 +69,7 @@ export const DB = {
   // 强制重置连接
   resetClient() {
       supabaseInstance = null;
-      memoryCloudConfig = null; // 清除内存缓存，强制重新读取
+      memoryCloudConfig = null;
   },
 
   getDB(): Promise<any> { return Promise.resolve(true); },
@@ -71,12 +83,9 @@ export const DB = {
   async bulkAdd(tableName: string, rows: any[], onProgress?: (percent: number) => void): Promise<void> {
     const supabase = getClient();
     
-    // 强化错误提示：区分是完全没配置，还是配置了但无效
+    // 强化错误提示
     if (!supabase) {
-        const hasLocal = !!localStorage.getItem('yunzhou_cloud_config');
-        const hasMemory = !!memoryCloudConfig;
-        const debugInfo = `Mem:${hasMemory}, Loc:${hasLocal}`;
-        throw new Error(`无法建立云端连接 (${debugInfo})。这通常是因为配置未保存或网络受限。请尝试刷新页面或重新保存[云端同步]配置。`);
+        throw new Error(`无法建立云端连接。系统未检测到 Supabase 配置 (环境变量或本地存储均为空)。请在 Vercel 设置环境变量或在[云端同步]页面手动配置。`);
     }
 
     let conflictKey = undefined;
@@ -127,9 +136,18 @@ export const DB = {
     }
   },
 
+  // 读取配置：支持混合模式 (Env > Memory > LocalStorage)
   async loadConfig<T>(key: string, defaultValue: T): Promise<T> {
     if (key === 'cloud_sync_config') {
-        // 优先返回内存中的配置，确保一致性
+        // 如果环境变量存在，直接返回脱敏信息，表示“已配置”
+        if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+            return { 
+                url: process.env.SUPABASE_URL, 
+                key: process.env.SUPABASE_KEY, 
+                isEnv: true // 标记源自环境变量
+            } as unknown as T;
+        }
+        
         if (memoryCloudConfig) return memoryCloudConfig as unknown as T;
         try {
             const raw = localStorage.getItem('yunzhou_cloud_config');
@@ -149,11 +167,8 @@ export const DB = {
 
   async saveConfig(key: string, data: any): Promise<void> {
     if (key === 'cloud_sync_config') {
-        // 同时写入内存和本地存储
         memoryCloudConfig = data; 
         localStorage.setItem('yunzhou_cloud_config', JSON.stringify(data));
-        
-        // 重置客户端实例，强制下次请求使用新配置
         supabaseInstance = null;
         return;
     }

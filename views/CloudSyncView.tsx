@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Settings2, ShieldCheck, Activity, Copy, Zap, Database, Server } from 'lucide-react';
+import { Settings2, ShieldCheck, Activity, Copy, Zap, Database, Server, Lock } from 'lucide-react';
 import { DB } from '../lib/db';
 import { createClient } from '@supabase/supabase-js';
 
@@ -12,32 +12,38 @@ export const CloudSyncView = ({ addToast }: any) => {
     const [supabaseKey, setSupabaseKey] = useState('');
     const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
     const [showSql, setShowSql] = useState(false);
+    const [isUsingEnv, setIsUsingEnv] = useState(false);
 
     useEffect(() => {
         const loadSettings = async () => {
-            // 直接读取配置
-            const config = await DB.loadConfig('cloud_sync_config', { 
+            // 读取配置
+            const config: any = await DB.loadConfig('cloud_sync_config', { 
                 url: DEFAULT_URL, 
                 key: DEFAULT_KEY, 
             });
-            setSupabaseUrl(config.url || '');
-            setSupabaseKey(config.key || '');
-            if (config.url && config.key) {
+
+            if (config.isEnv) {
+                setIsUsingEnv(true);
+                setSupabaseUrl(config.url);
+                setSupabaseKey(config.key); // 这里其实不需要展示真实的key
                 testConnection(config.url, config.key, true);
+            } else {
+                setSupabaseUrl(config.url || '');
+                setSupabaseKey(config.key || '');
+                if (config.url && config.key) {
+                    testConnection(config.url, config.key, true);
+                }
             }
         };
         loadSettings();
     }, []);
 
     const saveSettings = async () => {
-        // 保存前去除首尾空格
         const trimmedUrl = supabaseUrl.trim();
         const trimmedKey = supabaseKey.trim();
-        
         setSupabaseUrl(trimmedUrl);
         setSupabaseKey(trimmedKey);
 
-        // 保存到 localStorage (Bootstrap config)
         await DB.saveConfig('cloud_sync_config', { url: trimmedUrl, key: trimmedKey });
         addToast('success', '配置已更新', '系统已重置数据库连接池。');
         testConnection(trimmedUrl, trimmedKey);
@@ -48,12 +54,10 @@ export const CloudSyncView = ({ addToast }: any) => {
         setConnectionStatus('testing');
         try {
             const supabase = createClient(url, key);
-            // 尝试读取配置表，如果表不存在代码是 42P01
             const { error } = await supabase.from('app_config').select('key').limit(1);
             
             if (error) {
                 if (error.code === '42P01') throw new Error("连接成功，但数据库表未初始化。请执行下方的 SQL 脚本。");
-                // P.S. 如果 RLS 没开，可能读不到数据但没有 error，也算成功
                 throw error;
             }
             setConnectionStatus('success');
@@ -202,19 +206,30 @@ NOTIFY pgrst, 'reload schema';
                                 <Settings2 size={20} className="text-[#70AD47]" />
                                 Supabase 参数
                             </h3>
+                            {isUsingEnv && (
+                                <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-[9px] font-black uppercase flex items-center gap-1">
+                                    <Lock size={10}/> 环境变量托管中
+                                </span>
+                            )}
                         </div>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Supabase API URL</label>
-                                <input type="text" value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
+                                <input type="text" value={supabaseUrl} disabled={isUsingEnv} onChange={e => setSupabaseUrl(e.target.value)} className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47] ${isUsingEnv ? 'opacity-50 cursor-not-allowed' : ''}`} />
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Service Role / Anon Key</label>
-                                <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
+                                <input type="password" value={supabaseKey} disabled={isUsingEnv} onChange={e => setSupabaseKey(e.target.value)} className={`w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47] ${isUsingEnv ? 'opacity-50 cursor-not-allowed' : ''}`} />
                             </div>
-                            <button onClick={saveSettings} className="w-full py-3 rounded-xl bg-slate-800 text-white font-black text-xs hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
-                                <Zap size={14} /> 保存并连接
-                            </button>
+                            {!isUsingEnv ? (
+                                <button onClick={saveSettings} className="w-full py-3 rounded-xl bg-slate-800 text-white font-black text-xs hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
+                                    <Zap size={14} /> 保存并连接
+                                </button>
+                            ) : (
+                                <div className="text-[10px] text-slate-400 text-center font-bold bg-slate-100 p-3 rounded-xl">
+                                    配置已通过环境变量 (Environment Variables) 自动加载。
+                                </div>
+                            )}
                         </div>
                     </div>
 

@@ -1,3 +1,4 @@
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -5,8 +6,11 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // 关键修复：将环境变量注入到浏览器环境，防止 process.env.API_KEY 访问导致的白屏错误
+    // 关键修复：将环境变量注入到浏览器环境
+    // 既支持 Gemini API_KEY，也支持 Supabase 的连接凭证
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ""),
+    'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || ""),
+    'process.env.SUPABASE_KEY': JSON.stringify(process.env.SUPABASE_KEY || ""),
     'process.env': {}
   },
   build: {
