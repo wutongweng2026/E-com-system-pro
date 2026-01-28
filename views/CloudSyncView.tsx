@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CloudSync, Settings2, ShieldCheck, Activity, Copy, KeyRound, UserCircle2, Zap } from 'lucide-react';
+import { Settings2, ShieldCheck, Activity, Copy, Zap, Database, Server } from 'lucide-react';
 import { DB } from '../lib/db';
 import { createClient } from '@supabase/supabase-js';
 
@@ -15,45 +15,53 @@ export const CloudSyncView = ({ addToast }: any) => {
 
     useEffect(() => {
         const loadSettings = async () => {
+            // 直接读取配置
             const config = await DB.loadConfig('cloud_sync_config', { 
                 url: DEFAULT_URL, 
                 key: DEFAULT_KEY, 
             });
             setSupabaseUrl(config.url);
             setSupabaseKey(config.key);
+            if (config.url && config.key) {
+                testConnection(config.url, config.key, true);
+            }
         };
         loadSettings();
     }, []);
 
     const saveSettings = async () => {
-        await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey, lastSync: new Date().toISOString() });
-        addToast('success', '配置已保存', '系统已切换至自动同步模式 (Auto-Sync Mode)。');
-        testConnection();
+        // 保存到 localStorage (Bootstrap config)
+        await DB.saveConfig('cloud_sync_config', { url: supabaseUrl, key: supabaseKey });
+        addToast('success', '连接已更新', '系统已连接至新数据库。');
+        testConnection(supabaseUrl, supabaseKey);
     };
 
-    const testConnection = async () => {
-        if (!supabaseUrl || !supabaseKey) return;
+    const testConnection = async (url: string, key: string, silent = false) => {
+        if (!url || !key) return;
         setConnectionStatus('testing');
         try {
-            const supabase = createClient(supabaseUrl, supabaseKey);
+            const supabase = createClient(url, key);
+            // 尝试读取配置表，如果表不存在代码是 42P01
             const { error } = await supabase.from('app_config').select('key').limit(1);
+            
             if (error) {
-                if (error.code === '42P01') throw new Error("云端数据库尚未初始化。请执行下方的重置 SQL 脚本。");
+                if (error.code === '42P01') throw new Error("连接成功，但数据库表未初始化。请执行下方的 SQL 脚本。");
+                // P.S. 如果 RLS 没开，可能读不到数据但没有 error，也算成功
                 throw error;
             }
             setConnectionStatus('success');
-            addToast('success', '云端链路正常', '数据将实时自动同步。');
+            if (!silent) addToast('success', '云端握手成功', '数据库连接正常，读写通道已建立。');
         } catch (e: any) {
             setConnectionStatus('error');
-            addToast('error', '连接失败', e.message);
+            if (!silent) addToast('error', '连接失败', e.message);
         }
     };
 
     // 毁灭性重置脚本
-    const cleanSqlScript = `-- 云舟 (Yunzhou) 物理环境初始化脚本 (v5.2.7 DESTROY & REBUILD)
--- ⚠️ 警告：执行此脚本将清空所有现有数据！
+    const cleanSqlScript = `-- 云舟 (Yunzhou) 数据库初始化脚本 v5.3.0
+-- ⚠️ 注意：这会清空并重建所有表，请谨慎执行！
 
--- 1. 彻底移除旧表 (Clean Slate)
+-- 1. 重置表结构
 DROP TABLE IF EXISTS fact_shangzhi CASCADE;
 DROP TABLE IF EXISTS fact_jingzhuntong CASCADE;
 DROP TABLE IF EXISTS fact_customer_service CASCADE;
@@ -61,15 +69,8 @@ DROP TABLE IF EXISTS dim_viki_kb CASCADE;
 DROP TABLE IF EXISTS dim_quoting_library CASCADE;
 DROP TABLE IF EXISTS app_config CASCADE;
 
--- 2. 重建配置表
-CREATE TABLE app_config (
-  key TEXT PRIMARY KEY,
-  data JSONB,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL
-);
-
--- 3. 重建核心事实表
+-- 2. 核心事实表 (Fact Tables)
+-- 商智: 使用 (date + sku_code) 联合唯一索引实现去重
 CREATE TABLE fact_shangzhi (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -88,10 +89,10 @@ CREATE TABLE fact_shangzhi (
   paid_users INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL,
   UNIQUE(date, sku_code)
 );
 
+-- 广告: 使用 (date + tracked_sku_id + account_nickname) 联合唯一
 CREATE TABLE fact_jingzhuntong (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -103,10 +104,10 @@ CREATE TABLE fact_jingzhuntong (
   total_order_amount NUMERIC,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL,
   UNIQUE(date, tracked_sku_id, account_nickname)
 );
 
+-- 客服: 使用 (date + agent_account) 联合唯一
 CREATE TABLE fact_customer_service (
   id BIGSERIAL PRIMARY KEY,
   date DATE NOT NULL,
@@ -114,19 +115,23 @@ CREATE TABLE fact_customer_service (
   chats INTEGER,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL,
   UNIQUE(date, agent_account)
 );
 
--- 4. 重建维度表
+-- 3. 配置与维度表 (Config & Dimensions)
+CREATE TABLE app_config (
+  key TEXT PRIMARY KEY,
+  data JSONB,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE dim_viki_kb (
   id TEXT PRIMARY KEY,
   question TEXT NOT NULL,
   answer TEXT NOT NULL,
   category TEXT,
   usage_count INTEGER DEFAULT 0,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE dim_quoting_library (
@@ -134,22 +139,22 @@ CREATE TABLE dim_quoting_library (
   category TEXT NOT NULL,
   model TEXT NOT NULL,
   price NUMERIC NOT NULL,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  user_id UUID DEFAULT NULL
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. 开启 RLS 但允许匿名读写 (内部专用模式)
-ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
+-- 4. 权限设置 (允许匿名读写，方便快速部署)
 ALTER TABLE fact_shangzhi ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_jingzhuntong ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fact_customer_service ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dim_viki_kb ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dim_quoting_library ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Public Access" ON app_config FOR ALL USING (true) WITH CHECK (true);
+-- 创建允许所有操作的策略 (生产环境建议修改)
 CREATE POLICY "Public Access" ON fact_shangzhi FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Access" ON fact_jingzhuntong FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Access" ON fact_customer_service FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access" ON app_config FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Access" ON dim_viki_kb FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Access" ON dim_quoting_library FOR ALL USING (true) WITH CHECK (true);
 
@@ -163,10 +168,10 @@ NOTIFY pgrst, 'reload schema';
                 <div>
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-2 h-2 rounded-full bg-brand animate-pulse"></div>
-                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">全自动实时同步引擎 v5.2.7</span>
+                        <span className="text-[10px] font-black text-brand uppercase tracking-widest">Cloud-Native Mode Active</span>
                     </div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">异地同步中心</h1>
-                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Auto-Pilot Real-time Synchronization Hub</p>
+                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">数据库连接配置</h1>
+                    <p className="text-slate-500 font-medium text-xs mt-1 italic">Direct Cloud Connection - No Local Caching</p>
                 </div>
                 <div className={`flex items-center gap-2 px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest ${
                     connectionStatus === 'success' ? 'bg-green-50 border-green-200 text-green-600' :
@@ -174,10 +179,10 @@ NOTIFY pgrst, 'reload schema';
                     'bg-slate-50 border-slate-200 text-slate-400'
                 }`}>
                     <Activity size={12} className={connectionStatus === 'testing' ? 'animate-pulse' : ''} />
-                    云端链路: {
-                        connectionStatus === 'testing' ? '握手中...' :
-                        connectionStatus === 'success' ? '实时在线 (Live)' :
-                        connectionStatus === 'error' ? '断开' : '待机'
+                    状态: {
+                        connectionStatus === 'testing' ? '连接中...' :
+                        connectionStatus === 'success' ? '已连接 (Connected)' :
+                        connectionStatus === 'error' ? '连接断开' : '未配置'
                     }
                 </div>
             </div>
@@ -188,7 +193,7 @@ NOTIFY pgrst, 'reload schema';
                         <div className="flex items-center justify-between">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
                                 <Settings2 size={20} className="text-[#70AD47]" />
-                                链路参数配置
+                                Supabase 参数
                             </h3>
                         </div>
                         <div className="space-y-4">
@@ -201,21 +206,25 @@ NOTIFY pgrst, 'reload schema';
                                 <input type="password" value={supabaseKey} onChange={e => setSupabaseKey(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono outline-none focus:border-[#70AD47]" />
                             </div>
                             <button onClick={saveSettings} className="w-full py-3 rounded-xl bg-slate-800 text-white font-black text-xs hover:bg-slate-700 transition-all flex items-center justify-center gap-2">
-                                <Zap size={14} /> 保存并激活自动同步
+                                <Zap size={14} /> 保存并连接
                             </button>
                         </div>
                     </div>
 
-                    <div className="p-8 bg-blue-50 rounded-[32px] border border-blue-100 text-blue-900">
-                        <div className="flex items-center gap-2 mb-4 text-blue-600">
-                            <CloudSync size={20} />
-                            <h4 className="text-sm font-black uppercase tracking-wider">实时同步机制说明</h4>
+                    <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-200 text-slate-600">
+                        <div className="flex items-center gap-2 mb-4 text-slate-800">
+                            <Server size={20} />
+                            <h4 className="text-sm font-black uppercase tracking-wider">架构变更说明</h4>
                         </div>
-                        <ul className="text-[11px] font-bold space-y-3 opacity-80 leading-relaxed list-disc pl-4">
-                            <li><span className="text-blue-700">Write-Through (写入即同步):</span> 任何在数据中心导入、SKU编辑或报价操作，都会即时触发后台静默上传。</li>
-                            <li><span className="text-blue-700">Auto-Pull (心跳拉取):</span> 系统每 60 秒自动检查云端变更，确保多设备数据一致。</li>
-                            <li><span className="text-blue-700">Micro-Batching (微切片):</span> 大文件导入时，系统会自动将数据切分为 50行/组 进行流式传输，永不阻塞界面。</li>
-                        </ul>
+                        <p className="text-[11px] font-bold leading-relaxed opacity-80">
+                            当前系统已切换至 <span className="text-brand">云原生 (Cloud-Native)</span> 模式。
+                            <br/><br/>
+                            数据不再存储于浏览器 IndexedDB，而是直接读写 Supabase 云数据库。
+                            这意味着：
+                            <br/>1. 彻底解决本地数据与云端不一致的问题。
+                            <br/>2. 导入 Excel 时，系统会自动根据 SQL 唯一约束去重。
+                            <br/>3. 网络延迟将直接影响页面加载速度。
+                        </p>
                     </div>
                 </div>
 
@@ -226,16 +235,15 @@ NOTIFY pgrst, 'reload schema';
                         <div className="flex items-center justify-between mb-6 relative z-10">
                             <div className="flex items-center gap-3 text-[#70AD47]">
                                 <ShieldCheck size={20} />
-                                <h4 className="text-sm font-black uppercase tracking-wider">数据库初始化 (SQL Console)</h4>
+                                <h4 className="text-sm font-black uppercase tracking-wider">数据库初始化脚本</h4>
                             </div>
                             <button onClick={() => setShowSql(!showSql)} className="px-4 py-2 bg-white/10 rounded-lg text-[10px] font-black hover:bg-white/20 transition-all">
-                                {showSql ? '折叠脚本' : '展开初始化脚本'}
+                                {showSql ? '折叠' : '展开'}
                             </button>
                         </div>
 
                         <p className="text-[10px] text-slate-400 font-medium leading-relaxed mb-6 relative z-10">
-                            请复制下方 SQL 脚本到 Supabase 的 SQL Editor 中执行。
-                            <strong className="text-rose-400 block mt-1">注意：此脚本会先删除所有现有表，请谨慎操作！</strong>
+                            如果您发现数据库表为空，或者数据异常，请复制下方 SQL 并在 Supabase SQL Editor 中执行以重置环境。
                         </p>
 
                         {showSql && (

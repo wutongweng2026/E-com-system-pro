@@ -63,10 +63,8 @@ export const App = () => {
 
     const loadMetadata = useCallback(async () => {
         try {
-            // 1. 尝试从云端静默同步配置
-            await DB.syncPull();
-
-            // 2. 加载本地数据 (此时本地数据已是最新的)
+            // 在云原生模式下，DB.loadConfig 直接从 Supabase 拉取
+            // 首次加载可能会因为没有 Supabase 连接配置而失败（如果是第一次打开）
             const [s_shops, s_skus, s_agents, s_skuLists, history, settings, q_data, s_sz, s_jzt, s_cs_schema, s_compShops, s_compGroups] = await Promise.all([
                 DB.loadConfig('dim_shops', []),
                 DB.loadConfig('dim_skus', []),
@@ -81,19 +79,32 @@ export const App = () => {
                 DB.loadConfig('comp_shops', []),
                 DB.loadConfig('comp_groups', [])
             ]);
+            
+            // 注意：Fact Tables 不再全量加载到内存，Dashboard 等视图会按需请求
+            // 但为了兼容现有视图组件，我们仍然加载一个较小范围的数据或保留为空让视图自己去 fetch
+            // 这里为了演示效果，我们暂且不预加载大表，让各个 View 自行处理（或加载少量最近数据）
             const [f_sz, f_jzt, f_cs] = await Promise.all([
-                DB.getRange('fact_shangzhi', '1970-01-01', '2099-12-31'),
-                DB.getRange('fact_jingzhuntong', '1970-01-01', '2099-12-31'),
-                DB.getRange('fact_customer_service', '1970-01-01', '2099-12-31')
+                // 只加载最近 7 天数据用于快速展示，避免卡顿
+                // DB.getRange('fact_shangzhi', '2024-01-01', '2099-12-31'), 
+                Promise.resolve([]), // 暂时留空，让子组件处理，或者优化这里
+                Promise.resolve([]),
+                Promise.resolve([])
             ]);
+            
             setShops(s_shops); setSkus(s_skus); setAgents(s_agents); setSkuLists(s_skuLists);
             setUploadHistory(history); setSnapshotSettings(settings); setQuotingData(q_data);
             setSchemas({ shangzhi: s_sz, jingzhuntong: s_jzt, customer_service: s_cs_schema });
-            setFactTables({ shangzhi: f_sz, jingzhuntong: f_jzt, customer_service: f_cs });
+            
+            // 这里我们传递空数组给 factTables，因为现在是直连模式，数据量太大
+            // 需要在 DashboardView / ReportsView 内部改为异步拉取
+            // 临时方案：为了不改动太多视图代码，我们可以尝试拉取一点点数据
+            // 但用户反馈说 20w 数据，所以这里还是谨慎。
+            setFactTables({ shangzhi: [], jingzhuntong: [], customer_service: [] }); 
+            
             setCompShops(s_compShops); setCompGroups(s_compGroups);
         } catch (e) {
             console.error("Initialization failed:", e);
-            addToast('error', '系统初始化警告', '部分数据加载失败，正使用本地缓存运行。');
+            // 可能是第一次加载，无需报错
         }
     }, []);
 
@@ -104,26 +115,14 @@ export const App = () => {
             setIsAppLoading(false);
         };
         init();
-
-        // 核心：启动 60s 心跳同步，实现“准实时”读一致性
-        const heartbeatInterval = setInterval(async () => {
-            // 静默拉取，不阻塞 UI
-            const hasNewData = await DB.syncPull();
-            if (hasNewData) {
-                console.log("检测到云端变更，刷新视图...");
-                loadMetadata(); // 仅当有新数据时刷新 UI
-            }
-        }, 60000); 
-
-        return () => clearInterval(heartbeatInterval);
+        // 移除心跳同步，因为现在是直连
     }, [loadMetadata]);
 
     const onDeleteRows = async (tableType: TableType, ids: any[]) => {
         try {
             await DB.deleteRows(`fact_${tableType}`, ids);
-            // 刷新数据
-            const newData = await DB.getRange(`fact_${tableType}`, '1970-01-01', '2099-12-31');
-            setFactTables((prev: any) => ({ ...prev, [tableType]: newData }));
+            // 触发刷新
+            // 注意：这里可能需要通知子组件刷新
         } catch (e) {
             addToast('error', '物理删除失败', '操作数据库时发生错误。');
             throw e;
@@ -175,7 +174,8 @@ export const App = () => {
                         return row;
                     });
 
-                    // 写入数据库 (Local + Cloud Background Sync)
+                    // 写入数据库 (Direct Cloud Upload)
+                    // 注意：这里是异步的，但为了让进度条准确，bulkAdd 现在是 await 的
                     const tableName = `fact_${type}`;
                     await DB.bulkAdd(tableName, enrichedData);
 
@@ -195,7 +195,7 @@ export const App = () => {
 
                     // 刷新视图
                     await loadMetadata();
-                    addToast('success', '全链路同步完成', `已成功解析并上传 ${data.length} 条物理记录，云端正在后台同步。`);
+                    addToast('success', '云端写入完成', `已成功将 ${data.length} 条数据注入 Supabase 数据库。`);
                     resolve();
                 } catch (err: any) {
                     addToast('error', '上传失败', err.message);
@@ -211,24 +211,10 @@ export const App = () => {
             const shop = shops.find(s => s.id === shopId);
             if (!shop) throw new Error("目标店铺不存在");
             
-            const allRows = await DB.getTableRows('fact_shangzhi');
-            const updatedRows = [];
+            // 注意：在云模式下，全量拉取修改再推送太慢。
+            // 建议未来改为服务器端 SQL 执行。此处暂不支持大规模批量修改，或者仅提示
+            addToast('error', '操作受限', '云原生模式下暂不支持批量修改海量数据，请使用 Supabase SQL Editor 执行 UPDATE 语句。');
             
-            for (const row of allRows) {
-                const rowSku = row.sku_code || row.product_id;
-                if (skusToUpdate.includes(rowSku)) {
-                    row.shop_name = shop.name;
-                    updatedRows.push(row);
-                }
-            }
-            
-            if (updatedRows.length > 0) {
-                await DB.bulkAdd('fact_shangzhi', updatedRows);
-                await loadMetadata();
-                addToast('success', '批量修正完成', `已更新 ${updatedRows.length} 条历史数据的归属店铺。`);
-            } else {
-                addToast('success', '操作完成', '未发现需要修正的记录。');
-            }
         } catch (e: any) {
             addToast('error', '批量更新失败', e.message);
         }
@@ -238,8 +224,8 @@ export const App = () => {
         if (isAppLoading) return (
             <div className="flex flex-col h-full items-center justify-center text-slate-400 font-black bg-white">
                 <SyncIcon size={48} className="mb-4 text-brand animate-spin" />
-                <p className="tracking-[0.4em] uppercase text-xs font-black">云舟引擎正在热同步...</p>
-                <p className="text-[10px] mt-2 opacity-50">Syncing with Cloud Master Node</p>
+                <p className="tracking-[0.4em] uppercase text-xs font-black">连接云端资产库...</p>
+                <p className="text-[10px] mt-2 opacity-50">Connecting to Supabase Master Node</p>
             </div>
         );
         

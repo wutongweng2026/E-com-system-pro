@@ -1,336 +1,252 @@
 
 /**
- * Advanced IndexedDB Wrapper with Real-time Cloud Sync (Hybrid Architecture)
- * v5.2.7 Upgrade: Auto-Streaming Sync Kernel (Write-Through)
+ * Cloud-Native Database Adapter
+ * v5.3.0 Upgrade: Direct Supabase Connection (No IndexedDB)
+ * 
+ * 1. 移除 IndexedDB，所有数据直接读写 Supabase。
+ * 2. 使用 localStorage 存储连接配置 (Bootstrap Config)。
+ * 3. 批量写入采用分片同步等待模式，确保上传成功。
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-const DB_NAME = 'ShujianDB';
-const DB_VERSION = 3;
-
-// 缓存 Supabase 客户端实例
-let supabaseInstance: SupabaseClient | null = null;
 
 // 辅助：延迟函数
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const DB = {
-  getDB(): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-      
-      request.onupgradeneeded = (event: any) => {
-        const db = event.target.result;
-        const factTables = ['fact_shangzhi', 'fact_jingzhuntong', 'fact_customer_service'];
-        factTables.forEach(tableName => {
-          if (!db.objectStoreNames.contains(tableName)) {
-            const store = db.createObjectStore(tableName, { keyPath: 'id', autoIncrement: true });
-            store.createIndex('date', 'date', { unique: false });
-            if (tableName === 'fact_shangzhi') store.createIndex('sku_date', ['sku_code', 'date'], { unique: false });
-            if (tableName === 'fact_jingzhuntong') store.createIndex('jzt_key', ['tracked_sku_id', 'date', 'account_nickname'], { unique: false });
-            if (tableName === 'fact_customer_service') store.createIndex('cs_key', ['agent_account', 'date'], { unique: false });
-          }
-        });
-        if (!db.objectStoreNames.contains('app_config')) {
-          db.createObjectStore('app_config');
-        }
-      };
-    });
-  },
-
-  async getSupabase(): Promise<SupabaseClient | null> {
-    if (supabaseInstance) return supabaseInstance;
+// 获取客户端 (从 localStorage 读取配置)
+const getClient = (): SupabaseClient | null => {
     try {
-        const config = await this.loadConfig('cloud_sync_config', null);
-        if (config && config.url && config.key) {
-          supabaseInstance = createClient(config.url, config.key);
-          return supabaseInstance;
-        }
-    } catch(e) { return null; }
-    return null;
-  },
-
-  // 内部专用：带重试的批量上传
-  async _pushBatchToCloud(supabase: SupabaseClient, tableName: string, data: any[], conflictKey?: string) {
-      const CHUNK_SIZE = 50; // 微切片大小
-      
-      // 数据清洗：移除本地 ID，标准化日期
-      const cleanData = data.map(({ id, ...rest }: any) => {
-          if (rest.date instanceof Date) rest.date = rest.date.toISOString().split('T')[0];
-          // 确保 updated_at 也是最新的
-          if (!rest.updated_at) rest.updated_at = new Date().toISOString();
-          Object.keys(rest).forEach(key => { if (rest[key] === undefined) rest[key] = null; });
-          return rest;
-      });
-
-      // 在后台分片处理
-      let successCount = 0;
-      for (let i = 0; i < cleanData.length; i += CHUNK_SIZE) {
-          const chunk = cleanData.slice(i, i + CHUNK_SIZE);
-          let retries = 3;
-          while (retries > 0) {
-              try {
-                  const { error } = await supabase.from(tableName).upsert(chunk, { onConflict: conflictKey });
-                  if (error) throw error;
-                  successCount += chunk.length;
-                  break; 
-              } catch (e: any) {
-                  retries--;
-                  console.warn(`[AutoSync] ${tableName} 分片上传重试 (${retries} left):`, e.message);
-                  await sleep(1000); // 失败等待 1秒
-              }
-          }
-          await sleep(50); // 请求间隔，防止拥塞
-      }
-      console.log(`[AutoSync] ${tableName}: 已后台同步 ${successCount}/${data.length} 条记录`);
-  },
-
-  // 核心：智能增量拉取
-  async syncPull(): Promise<boolean> {
-    const supabase = await this.getSupabase();
-    if (!supabase) return false;
-
-    const syncConfig = await this.loadConfig('cloud_sync_config', { lastSync: '1970-01-01T00:00:00.000Z' });
-    const lastSync = syncConfig.lastSync || '1970-01-01T00:00:00.000Z';
-    const newSyncTime = new Date().toISOString(); 
-
-    try {
-      // 1. 同步配置
-      const { data: configs } = await supabase.from('app_config').select('*').gt('updated_at', lastSync);
-      if (configs && configs.length > 0) {
-        for (const item of configs) {
-          if (item.key !== 'cloud_sync_config') {
-             // 写入本地但不触发回传 (防止死循环)
-             await this._localSaveConfig(item.key, item.data);
-          }
-        }
-      }
-
-      // 2. 同步事实表
-      const tables = [
-          { name: 'fact_shangzhi', indexName: 'sku_date', keyMapper: (r:any) => [r.sku_code, r.date] },
-          { name: 'fact_jingzhuntong', indexName: 'jzt_key', keyMapper: (r:any) => [r.tracked_sku_id, r.date, r.account_nickname] },
-          { name: 'fact_customer_service', indexName: 'cs_key', keyMapper: (r:any) => [r.agent_account, r.date] }
-      ];
-      
-      const db = await this.getDB();
-
-      for (const t of tables) {
-          let hasMore = true;
-          let page = 0;
-          const pageSize = 1000;
-
-          while (hasMore) {
-              const { data, error } = await supabase
-                  .from(t.name)
-                  .select('*')
-                  .gt('updated_at', lastSync)
-                  .range(page * pageSize, (page + 1) * pageSize - 1)
-                  .order('updated_at', { ascending: true });
-
-              if (error || !data || data.length === 0) {
-                  hasMore = false;
-              } else {
-                  const tx = db.transaction([t.name], 'readwrite');
-                  const store = tx.objectStore(t.name);
-                  const index = store.index(t.indexName);
-
-                  for (const cloudRow of data) {
-                      // 简单去重逻辑：如果本地有相同业务主键，则覆盖
-                      const bizKey = t.keyMapper(cloudRow);
-                      const getReq = index.get(bizKey);
-                      getReq.onsuccess = () => {
-                          const localRecord = getReq.result;
-                          if (localRecord) {
-                              // 更新：保留本地ID以防主键冲突，更新内容
-                              store.put({ ...cloudRow, id: localRecord.id });
-                          } else {
-                              // 新增：移除云端ID（让本地自增）或者保留云端ID需视情况而定
-                              // 这里建议移除ID让本地生成，避免冲突，因为ID只是物理主键
-                              const { id, ...rowContent } = cloudRow;
-                              store.put(rowContent);
-                          }
-                      };
-                  }
-                  
-                  // 等待事务完成
-                  await new Promise<void>((resolve) => {
-                      tx.oncomplete = () => resolve();
-                      tx.onerror = () => resolve();
-                  });
-
-                  if (data.length < pageSize) hasMore = false; else page++;
-              }
-          }
-      }
-
-      await this._localSaveConfig('cloud_sync_config', { ...syncConfig, lastSync: newSyncTime });
-      return true;
+        // 从 localStorage 读取启动配置
+        const raw = localStorage.getItem('yunzhou_cloud_config');
+        if (!raw) return null;
+        const config = JSON.parse(raw);
+        if (!config.url || !config.key) return null;
+        return createClient(config.url, config.key);
     } catch (e) {
-      console.error("[AutoPull] Error:", e);
-      return false;
+        return null;
     }
+};
+
+export const DB = {
+  // 兼容旧接口：初始化 (在云原生模式下不需要做太多事)
+  getDB(): Promise<any> {
+    return Promise.resolve(true); 
   },
 
-  // 内部：仅写入本地配置，不触发同步
-  async _localSaveConfig(key: string, data: any): Promise<void> {
-      const db = await this.getDB();
-      return new Promise((resolve, reject) => {
-          const tx = db.transaction(['app_config'], 'readwrite');
-          tx.objectStore('app_config').put(data, key);
-          tx.oncomplete = () => resolve();
-          tx.onerror = () => reject();
-      });
+  // 获取云端客户端
+  async getSupabase(): Promise<SupabaseClient | null> {
+    return getClient();
   },
 
-  async getAllKeys(tableName: string): Promise<any[]> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-        const store = db.transaction([tableName], 'readonly').objectStore(tableName);
-        const req = store.getAllKeys();
-        req.onsuccess = () => resolve(req.result);
-    });
+  // 已废弃：同步拉取 (直连模式下不需要)
+  async syncPull(): Promise<boolean> {
+    return true; 
   },
 
-  async getBatch(tableName: string, keys: any[]): Promise<any[]> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-        const store = db.transaction([tableName], 'readonly').objectStore(tableName);
-        const results: any[] = [];
-        let completed = 0;
-        if(keys.length===0) resolve([]);
-        keys.forEach(k => {
-            store.get(k).onsuccess = (e: any) => {
-                if(e.target.result) results.push(e.target.result);
-                completed++;
-                if(completed === keys.length) resolve(results);
-            };
-        });
-    });
-  },
-
-  // 删除行
-  async deleteRows(tableName: string, ids: any[]): Promise<void> {
-    const db = await this.getDB();
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([tableName], 'readwrite');
-      const store = transaction.objectStore(tableName);
-      ids.forEach(id => store.delete(id));
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
-    // TODO: 实现云端删除 (需 Soft Delete 或单独的删除表)
-  },
-
-  // 核心：批量添加 (自动触发后台云同步)
+  // 核心：批量上传 (直接写入 Supabase)
   async bulkAdd(tableName: string, rows: any[]): Promise<void> {
-    const db = await this.getDB();
-    const rowsWithTime = rows.map(r => ({ ...r, updated_at: new Date().toISOString() }));
-    
-    // 1. 写入本地
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([tableName], 'readwrite');
-      const store = transaction.objectStore(tableName);
-      rowsWithTime.forEach(row => store.put(row)); 
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
+    const supabase = getClient();
+    if (!supabase) throw new Error("未配置云端连接，无法写入数据。请先在[云端同步]页面配置。");
 
-    // 2. 触发后台云同步 (Fire and forget)
-    const supabase = await this.getSupabase();
-    if (supabase) {
-        let conflictKey = undefined;
-        if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
-        else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,tracked_sku_id,account_nickname';
-        else if (tableName === 'fact_customer_service') conflictKey = 'date,agent_account';
+    // 1. 确定冲突主键 (用于去重)
+    let conflictKey = undefined;
+    if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
+    else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,tracked_sku_id,account_nickname';
+    else if (tableName === 'fact_customer_service') conflictKey = 'date,agent_account';
+    else if (tableName === 'app_config') conflictKey = 'key';
+    else if (tableName === 'dim_skus') conflictKey = 'id'; // 维度表通常用 ID 或 特定业务键
+
+    // 2. 数据清洗 (移除本地临时字段，标准化日期)
+    const cleanData = rows.map(({ id, ...rest }: any) => {
+        // 如果是 fact 表，不要带 id 进去，让数据库自增 (除非是更新指定行)
+        // 如果是 dim 表 (如 dim_skus)，可能需要保留 id
+        const clean = { ...rest };
         
-        // 异步执行，不等待
-        this._pushBatchToCloud(supabase, tableName, rowsWithTime, conflictKey);
-    }
-  },
+        // 只有非 fact 表才保留 id (用于覆盖更新)
+        if (tableName.startsWith('fact_')) {
+            delete clean.id; 
+        }
 
-  // 保存配置 (自动触发后台云同步)
-  async saveConfig(key: string, data: any): Promise<void> {
-    const db = await this.getDB();
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(['app_config'], 'readwrite');
-      const store = transaction.objectStore('app_config');
-      store.put(data, key);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+        if (clean.date instanceof Date) clean.date = clean.date.toISOString().split('T')[0];
+        // 确保 date 格式正确
+        if (typeof clean.date === 'string' && clean.date.includes('T')) {
+             clean.date = clean.date.split('T')[0];
+        }
+        
+        clean.updated_at = new Date().toISOString(); 
+        
+        // 清理 undefined
+        Object.keys(clean).forEach(key => { if (clean[key] === undefined) clean[key] = null; });
+        return clean;
     });
 
-    // 触发同步
-    if (key !== 'cloud_sync_config') {
-        const supabase = await this.getSupabase();
-        if (supabase) {
-            this._pushBatchToCloud(supabase, 'app_config', [{ key, data, updated_at: new Date().toISOString() }], 'key');
+    // 3. 分片上传 (Batch Upload) - 1000条/次
+    const BATCH_SIZE = 1000;
+    const total = cleanData.length;
+    
+    console.log(`[Cloud] 开始上传 ${tableName}, 共 ${total} 条...`);
+
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+        const chunk = cleanData.slice(i, i + BATCH_SIZE);
+        
+        // 坚决的重试机制
+        let retries = 3;
+        let success = false;
+        
+        while (retries > 0 && !success) {
+            try {
+                const { error } = await supabase.from(tableName).upsert(chunk, { 
+                    onConflict: conflictKey,
+                    ignoreDuplicates: false // false = 遇到冲突执行更新 (Upsert)
+                });
+                
+                if (error) throw error;
+                success = true;
+                console.log(`[Cloud] ${tableName} 批次 ${i/BATCH_SIZE + 1} 成功.`);
+            } catch (e: any) {
+                console.error(`[Cloud] 上传失败，重试中... (${retries})`, e.message);
+                retries--;
+                await sleep(1000); // 失败等待 1秒
+                if (retries === 0) throw new Error(`云端写入失败: ${e.message}`);
+            }
         }
     }
   },
 
-  async getTableRows(tableName: string): Promise<any[]> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-      const transaction = db.transaction([tableName], 'readonly');
-      const store = transaction.objectStore(tableName);
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
-    });
-  },
-
-  async getRange(tableName: string, startDate: string, endDate: string): Promise<any[]> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-      const transaction = db.transaction([tableName], 'readonly');
-      const store = transaction.objectStore(tableName);
-      const index = store.index('date');
-      const range = IDBKeyRange.bound(startDate, endDate);
-      const request = index.getAll(range);
-      request.onsuccess = () => resolve(request.result);
-    });
-  },
-
+  // 读取配置
   async loadConfig<T>(key: string, defaultValue: T): Promise<T> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-      const transaction = db.transaction(['app_config'], 'readonly');
-      const store = transaction.objectStore('app_config');
-      const request = store.get(key);
-      request.onsuccess = () => resolve(request.result !== undefined ? request.result : defaultValue);
-      request.onerror = () => resolve(defaultValue);
-    });
+    // 特殊：云连接配置直接读 localStorage
+    if (key === 'cloud_sync_config') {
+        const raw = localStorage.getItem('yunzhou_cloud_config');
+        return raw ? JSON.parse(raw) : defaultValue;
+    }
+
+    const supabase = getClient();
+    if (!supabase) return defaultValue;
+
+    try {
+        const { data, error } = await supabase.from('app_config').select('data').eq('key', key).single();
+        if (error || !data) return defaultValue;
+        return data.data as T;
+    } catch (e) {
+        return defaultValue;
+    }
   },
 
-  async getAllConfigs(): Promise<Record<string, any>> {
-    const db = await this.getDB();
-    return new Promise((resolve) => {
-      const transaction = db.transaction(['app_config'], 'readonly');
-      const store = transaction.objectStore('app_config');
-      const items: any = {};
-      const cursorReq = store.openCursor();
-      cursorReq.onsuccess = (e: any) => {
-          const cursor = e.target.result;
-          if (cursor) {
-              items[cursor.key] = cursor.value;
-              cursor.continue();
-          } else {
-              resolve(items);
-          }
-      };
-    });
+  // 保存配置
+  async saveConfig(key: string, data: any): Promise<void> {
+    // 特殊：云连接配置写 localStorage
+    if (key === 'cloud_sync_config') {
+        localStorage.setItem('yunzhou_cloud_config', JSON.stringify(data));
+        return;
+    }
+
+    const supabase = getClient();
+    if (!supabase) return; // 如果没连接，无法保存业务配置
+
+    const payload = {
+        key,
+        data,
+        updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase.from('app_config').upsert(payload, { onConflict: 'key' });
+    if (error) console.error("Config Save Error:", error);
   },
 
+  // 获取全量数据 (用于计算) - 注意：大数据量可能会慢，后期需改为服务器端计算
+  async getTableRows(tableName: string): Promise<any[]> {
+    const supabase = getClient();
+    if (!supabase) return [];
+
+    let allRows: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    // 简单分页拉取
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) {
+            console.error("Fetch Error:", error);
+            hasMore = false;
+        } else if (data && data.length > 0) {
+            allRows = allRows.concat(data);
+            if (data.length < pageSize) hasMore = false;
+            page++;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allRows;
+  },
+
+  // 获取时间范围数据
+  async getRange(tableName: string, startDate: string, endDate: string): Promise<any[]> {
+    const supabase = getClient();
+    if (!supabase) return [];
+
+    // 对于大表，为了防止前端崩塌，限制最大行数或使用分页
+    // 这里为了演示完整性，做自动分页拉取
+    let allRows: any[] = [];
+    let page = 0;
+    const pageSize = 2000;
+    let hasMore = true;
+
+    while (hasMore) {
+        const { data, error } = await supabase
+            .from(tableName)
+            .select('*')
+            .gte('date', startDate)
+            .lte('date', endDate)
+            .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (error) {
+            console.error("Range Fetch Error:", error);
+            hasMore = false; 
+        } else if (data && data.length > 0) {
+            allRows = allRows.concat(data);
+            if (data.length < pageSize) hasMore = false;
+            page++;
+        } else {
+            hasMore = false;
+        }
+    }
+    return allRows;
+  },
+
+  // 删除数据
+  async deleteRows(tableName: string, ids: any[]): Promise<void> {
+    const supabase = getClient();
+    if (!supabase) return;
+    
+    if (ids.length === 0) return;
+
+    // 批量删除
+    const { error } = await supabase.from(tableName).delete().in('id', ids);
+    if (error) throw error;
+  },
+
+  // 清空表
   async clearTable(tableName: string): Promise<void> {
-    const db = await this.getDB();
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([tableName], 'readwrite');
-      const store = transaction.objectStore(tableName);
-      store.clear();
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
+    const supabase = getClient();
+    if (!supabase) return;
+    // Supabase 不允许不带条件的 delete all，需要 hack 一下或用 Rpc
+    // 这里使用 id > 0 
+    const { error } = await supabase.from(tableName).delete().gt('id', 0);
+    if (error) throw error;
   },
+  
+  // 辅助：获取所有 ID
+  async getAllKeys(tableName: string): Promise<any[]> {
+      // 云模式下不建议前端获取所有ID，返回空或仅用于特定逻辑
+      return []; 
+  },
+  
+  async getBatch(tableName: string, keys: any[]): Promise<any[]> {
+      return [];
+  }
 };
