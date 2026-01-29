@@ -59,35 +59,98 @@ export const CloudSyncView = ({ addToast }: any) => {
         }
     };
 
-    const cleanSqlScript = `-- 云舟 (Yunzhou) 数据库修复脚本 v5.4.0
--- ⚠️ 1. 允许匿名写入 (解决 Upload Failed / 42501 错误)
-DROP POLICY IF EXISTS "Public Access Shangzhi" ON fact_shangzhi;
-CREATE POLICY "Public Access Shangzhi" ON fact_shangzhi FOR ALL USING (true) WITH CHECK (true);
+    const cleanSqlScript = `-- 云舟 (Yunzhou) 数据库全量修复脚本 v5.5.0
+-- ✅ 解决了 "relation dim_skus does not exist" 报错
+-- ✅ 包含所有事实表(Fact)与配置表(Config)的自动创建与权限授予
 
-DROP POLICY IF EXISTS "Public Access Jzt" ON fact_jingzhuntong;
-CREATE POLICY "Public Access Jzt" ON fact_jingzhuntong FOR ALL USING (true) WITH CHECK (true);
+-- 1. 核心事实表 (自动创建)
+CREATE TABLE IF NOT EXISTS fact_shangzhi (
+  id BIGSERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  sku_code TEXT NOT NULL,
+  product_name TEXT,
+  brand TEXT,
+  category_l1 TEXT,
+  category_l2 TEXT,
+  category_l3 TEXT,
+  shop_name TEXT,
+  business_mode TEXT,
+  pv INTEGER,
+  uv INTEGER,
+  paid_amount NUMERIC,
+  paid_items INTEGER,
+  paid_users INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(date, sku_code)
+);
 
-DROP POLICY IF EXISTS "Public Access CS" ON fact_customer_service;
-CREATE POLICY "Public Access CS" ON fact_customer_service FOR ALL USING (true) WITH CHECK (true);
+CREATE TABLE IF NOT EXISTS fact_jingzhuntong (
+  id BIGSERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  account_nickname TEXT,
+  tracked_sku_id TEXT NOT NULL,
+  cost NUMERIC,
+  clicks INTEGER,
+  impressions INTEGER,
+  total_order_amount NUMERIC,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(date, tracked_sku_id, account_nickname)
+);
 
-DROP POLICY IF EXISTS "Public Access Config" ON app_config;
-CREATE POLICY "Public Access Config" ON app_config FOR ALL USING (true) WITH CHECK (true);
+CREATE TABLE IF NOT EXISTS fact_customer_service (
+  id BIGSERIAL PRIMARY KEY,
+  date DATE NOT NULL,
+  agent_account TEXT NOT NULL,
+  chats INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(date, agent_account)
+);
 
-DROP POLICY IF EXISTS "Public Access Skus" ON dim_skus; -- 如果有这个表
-CREATE POLICY "Public Access Skus" ON dim_skus FOR ALL USING (true) WITH CHECK (true);
+-- 2. 报价库独立表 (用于 AI 报价模块)
+CREATE TABLE IF NOT EXISTS dim_quoting_library (
+  id TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  model TEXT NOT NULL,
+  price NUMERIC NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
--- ⚠️ 2. 授予角色权限 (关键)
-GRANT USAGE ON SCHEMA public TO anon;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
-
--- ⚠️ 3. 确保表存在 (如果之前初始化失败)
+-- 3. 通用配置表 (存储 SKU/店铺/KnowledgeBase 等 JSON 数据)
 CREATE TABLE IF NOT EXISTS app_config (
   key TEXT PRIMARY KEY,
   data JSONB,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 4. 启用 RLS (Row Level Security)
+ALTER TABLE fact_shangzhi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fact_jingzhuntong ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fact_customer_service ENABLE ROW LEVEL SECURITY;
+ALTER TABLE dim_quoting_library ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
+
+-- 5. 极度宽松策略 (允许匿名读写，解决 Permission Denied)
+-- 先删除旧策略防止冲突
+DROP POLICY IF EXISTS "Public Access Shangzhi" ON fact_shangzhi;
+DROP POLICY IF EXISTS "Public Access Jzt" ON fact_jingzhuntong;
+DROP POLICY IF EXISTS "Public Access CS" ON fact_customer_service;
+DROP POLICY IF EXISTS "Public Access Quotes" ON dim_quoting_library;
+DROP POLICY IF EXISTS "Public Access Config" ON app_config;
+
+-- 创建新策略
+CREATE POLICY "Public Access Shangzhi" ON fact_shangzhi FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access Jzt" ON fact_jingzhuntong FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access CS" ON fact_customer_service FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access Quotes" ON dim_quoting_library FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public Access Config" ON app_config FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. 授予匿名角色权限 (关键)
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon;
 
 NOTIFY pgrst, 'reload schema';
 `;
