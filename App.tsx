@@ -129,6 +129,9 @@ export const App = () => {
 
     // 统一数据上传处理器 - 支持进度回调
     const handleUpload = async (file: File, type: TableType, shopId?: string, onProgress?: (p: number) => void) => {
+        // 重置客户端以确保获取最新配置 (Fix for stale client)
+        DB.resetClient();
+        
         return new Promise<void>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = async (e) => {

@@ -1,12 +1,11 @@
 
 /**
  * Cloud-Native Database Adapter
- * v5.3.4 Upgrade: Zero-Config Fallback Strategy
+ * v5.4.0 Upgrade: Adaptive Batch Upload & Deep Diagnostics
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // 默认演示配置 (兜底策略)
-// 当用户既没有设置环境变量，也没有手动配置时，使用此公开演示库
 const DEFAULT_FALLBACK_URL = "https://stycaaqvjbjnactxcvyh.supabase.co";
 const DEFAULT_FALLBACK_KEY = "sb_publishable_m4yyJRlDY107a3Nkx6Pybw_6Mdvxazn";
 
@@ -15,30 +14,23 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // 单例缓存
 let supabaseInstance: SupabaseClient | null = null;
-
-// 内存级配置缓存
 let memoryCloudConfig: { url: string; key: string } | null = null;
 
-// 获取客户端 (优先读取内存 -> 环境变量 -> 本地存储 -> 默认演示库)
 const getClient = (): SupabaseClient | null => {
-    // 1. 如果已有活跃实例，直接返回
     if (supabaseInstance) return supabaseInstance;
 
-    // 2. 尝试获取配置
     let config = memoryCloudConfig;
 
-    // 2.1 如果内存没有，检查环境变量 (Vercel Deployment)
-    if (!config) {
-        const envUrl = process.env.SUPABASE_URL;
-        const envKey = process.env.SUPABASE_KEY;
-        if (envUrl && envKey) {
-            config = { url: envUrl.trim(), key: envKey.trim() };
-            memoryCloudConfig = config; 
-            console.log("[Yunzhou DB] Connected via Environment Variables.");
-        }
+    // 1. 优先检查 Vercel 环境变量
+    if (!config && process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+        config = { 
+            url: process.env.SUPABASE_URL.replace(/"/g, '').trim(), 
+            key: process.env.SUPABASE_KEY.replace(/"/g, '').trim() 
+        };
+        memoryCloudConfig = config;
     }
 
-    // 2.2 如果环境变量也没有，尝试 localStorage (手动配置模式)
+    // 2. 检查 LocalStorage
     if (!config) {
         try {
             const raw = localStorage.getItem('yunzhou_cloud_config');
@@ -54,20 +46,20 @@ const getClient = (): SupabaseClient | null => {
         }
     }
 
-    // 2.3 【关键修复】如果还是没有配置，使用默认演示库
+    // 3. 兜底
     if (!config) {
-        console.warn("[Yunzhou DB] No custom config found. Using Fallback Demo Database.");
         config = { url: DEFAULT_FALLBACK_URL, key: DEFAULT_FALLBACK_KEY };
-        memoryCloudConfig = config; // 存入内存，避免重复警告
+        memoryCloudConfig = config;
     }
 
-    // 3. 最终检查 (理论上不会触发，因为有 Default)
-    if (!config || !config.url || !config.key) {
-        return null;
-    }
+    if (!config || !config.url || !config.key) return null;
 
     try {
-        supabaseInstance = createClient(config.url, config.key);
+        supabaseInstance = createClient(config.url, config.key, {
+            auth: { persistSession: false },
+            db: { schema: 'public' },
+            global: { headers: { 'x-application-name': 'yunzhou-ecom' } }
+        });
         return supabaseInstance;
     } catch (e: any) {
         console.error("[Yunzhou DB] Client Create Failed:", e);
@@ -76,7 +68,6 @@ const getClient = (): SupabaseClient | null => {
 };
 
 export const DB = {
-  // 强制重置连接
   resetClient() {
       supabaseInstance = null;
       memoryCloudConfig = null;
@@ -88,15 +79,10 @@ export const DB = {
     return getClient();
   },
 
-  async syncPull(): Promise<boolean> { return true; },
-
+  // 核心上传逻辑：支持动态降级 (Adaptive Batch Sizing)
   async bulkAdd(tableName: string, rows: any[], onProgress?: (percent: number) => void): Promise<void> {
     const supabase = getClient();
-    
-    if (!supabase) {
-        // 这一步理论上不可达，除非 Supabase SDK 初始化崩溃
-        throw new Error(`云端连接初始化失败。请检查浏览器控制台日志。`);
-    }
+    if (!supabase) throw new Error(`云端连接初始化失败 (Supabase Client is null)。请检查配置。`);
 
     let conflictKey = undefined;
     if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
@@ -105,53 +91,102 @@ export const DB = {
     else if (tableName === 'app_config') conflictKey = 'key';
     else if (tableName === 'dim_skus') conflictKey = 'id';
 
+    // 数据清洗
     const cleanData = rows.map(({ id, ...rest }: any) => {
         const clean = { ...rest };
         if (tableName.startsWith('fact_')) { delete clean.id; }
+        // 强制转换日期格式，防止 Supabase 报错
         if (clean.date instanceof Date) clean.date = clean.date.toISOString().split('T')[0];
         if (typeof clean.date === 'string' && clean.date.includes('T')) { clean.date = clean.date.split('T')[0]; }
+        
         clean.updated_at = new Date().toISOString(); 
+        // 移除 undefined，转换 null
         Object.keys(clean).forEach(key => { if (clean[key] === undefined) clean[key] = null; });
         return clean;
     });
 
-    const BATCH_SIZE = 1000;
     const total = cleanData.length;
+    let processed = 0;
     
-    console.log(`[Cloud] 开始上传 ${tableName}, 共 ${total} 条...`);
+    // 初始批量大小
+    let currentBatchSize = 100; 
+
     if (onProgress) onProgress(0);
 
-    for (let i = 0; i < total; i += BATCH_SIZE) {
-        const chunk = cleanData.slice(i, i + BATCH_SIZE);
+    while (processed < total) {
+        // 动态切片
+        const chunk = cleanData.slice(processed, processed + currentBatchSize);
+        if (chunk.length === 0) break;
+
         let retries = 3;
         let success = false;
+        let lastError: any = null;
         
         while (retries > 0 && !success) {
             try {
                 const { error } = await supabase.from(tableName).upsert(chunk, { onConflict: conflictKey, ignoreDuplicates: false });
-                if (error) throw error;
+                
+                if (error) {
+                    // 如果是 413 (Payload Too Large) 或 5xx 错误，尝试减小 Batch Size
+                    if (error.code === '413' || error.message.includes('Payload') || parseInt(error.code) >= 500) {
+                        throw { isSizeIssue: true, originalError: error };
+                    }
+                    throw error;
+                }
+                
                 success = true;
+                processed += chunk.length;
+                
+                // 如果成功且批量很小，尝试慢慢恢复
+                if (currentBatchSize < 100) currentBatchSize = Math.min(100, currentBatchSize * 2);
+
             } catch (e: any) {
-                console.error(`[Cloud] Upload Failed (Retry ${retries}):`, e.message);
+                lastError = e;
+                
+                // 遇到容量/超时问题，立即降级
+                if (e.isSizeIssue || e.message?.includes('timeout') || e.message?.includes('fetch')) {
+                    console.warn(`[Cloud] Batch too large or timeout. Reducing size from ${currentBatchSize} to ${Math.max(10, Math.floor(currentBatchSize / 2))}`);
+                    currentBatchSize = Math.max(10, Math.floor(currentBatchSize / 2));
+                    // 不扣减 retries，直接用新 size 重试当前 processed 游标
+                    break; 
+                }
+
+                console.error(`[Cloud Upload] Retry ${retries} failed:`, e);
                 retries--;
-                await sleep(1500); 
-                if (retries === 0) throw new Error(`云端写入失败: ${e.message}`);
+                await sleep(1000 + Math.random() * 1000);
             }
         }
 
+        if (!success && lastError && !lastError.isSizeIssue) {
+            // 如果不是因为 Size 问题导致的失败，那就是硬伤（权限、格式），直接抛出
+            const msg = lastError?.message || JSON.stringify(lastError);
+            const hint = lastError?.hint || '';
+            const details = lastError?.details || '';
+            
+            if (lastError?.code === '42501') {
+                throw new Error(`权限不足 (RLS Policy Violation)。请在 Supabase 执行 SQL 脚本授予匿名写入权限。`);
+            }
+            
+            throw new Error(`写入中断 (Row ${processed + 1}): ${msg} ${hint} ${details}`);
+        }
+
         if (onProgress) {
-            const percent = Math.min(100, Math.round(((i + chunk.length) / total) * 100));
+            const percent = Math.min(100, Math.round((processed / total) * 100));
             onProgress(percent);
         }
     }
   },
 
   async loadConfig<T>(key: string, defaultValue: T): Promise<T> {
+    // 强制刷新 Config 逻辑，确保能读到环境变量
     if (key === 'cloud_sync_config') {
-        if (process.env.SUPABASE_URL && process.env.SUPABASE_KEY) {
+        const envUrl = process.env.SUPABASE_URL;
+        const envKey = process.env.SUPABASE_KEY;
+        
+        if (envUrl && envKey) {
             return { 
-                url: process.env.SUPABASE_URL, 
-                key: process.env.SUPABASE_KEY, 
+                url: envUrl.replace(/"/g, '').trim(), 
+                key: envKey.replace(/"/g, '').trim(), 
                 isEnv: true 
             } as unknown as T;
         }
@@ -159,8 +194,7 @@ export const DB = {
         if (memoryCloudConfig) return memoryCloudConfig as unknown as T;
         try {
             const raw = localStorage.getItem('yunzhou_cloud_config');
-            // 如果本地没存，返回默认演示配置，确保 UI 显示正常
-            return raw ? JSON.parse(raw) : { url: DEFAULT_FALLBACK_URL, key: DEFAULT_FALLBACK_KEY };
+            return raw ? JSON.parse(raw) : defaultValue;
         } catch { return defaultValue; }
     }
 
@@ -178,7 +212,7 @@ export const DB = {
     if (key === 'cloud_sync_config') {
         memoryCloudConfig = data; 
         localStorage.setItem('yunzhou_cloud_config', JSON.stringify(data));
-        supabaseInstance = null;
+        supabaseInstance = null; // 重置实例
         return;
     }
 
@@ -190,23 +224,48 @@ export const DB = {
     if (error) console.error("Config Save Error:", error);
   },
 
-  async getTableRows(tableName: string): Promise<any[]> {
-    const supabase = getClient();
-    if (!supabase) return [];
-    let allRows: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-    while (hasMore) {
-        const { data, error } = await supabase.from(tableName).select('*').range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) { hasMore = false; } 
-        else if (data && data.length > 0) {
-            allRows = allRows.concat(data);
-            if (data.length < pageSize) hasMore = false;
-            page++;
-        } else { hasMore = false; }
-    }
-    return allRows;
+  // 深度诊断：真实写入测试
+  async diagnoseConnection(): Promise<{ step: string, status: 'ok'|'fail'|'warn', msg: string }[]> {
+      const results = [];
+      
+      // 1. Client Init
+      const supabase = getClient();
+      if (!supabase) {
+          return [{ step: '客户端初始化', status: 'fail', msg: '无法创建 Supabase 客户端，URL/Key 为空' }];
+      }
+      results.push({ step: '客户端初始化', status: 'ok', msg: 'Supabase JS Client 已就绪' });
+
+      // 2. Read Test
+      const t1 = Date.now();
+      const { data, error: readError } = await supabase.from('app_config').select('key').limit(1);
+      if (readError) {
+          // 如果表不存在
+          if (readError.code === '42P01') {
+              return [...results, { step: '读取测试', status: 'fail', msg: '连接成功，但数据库表未初始化 (Table not found)。请运行 SQL 脚本。' }];
+          }
+          return [...results, { step: '读取测试', status: 'fail', msg: `读取失败 [${readError.code}]: ${readError.message}` }];
+      }
+      results.push({ step: '读取测试', status: 'ok', msg: `读取成功 (延迟 ${Date.now() - t1}ms)` });
+
+      // 3. Write Test (Crucial)
+      const t2 = Date.now();
+      const testPayload = { key: 'sys_write_test', data: { ts: t2, browser: navigator.userAgent }, updated_at: new Date().toISOString() };
+      const { error: writeError } = await supabase.from('app_config').upsert(testPayload);
+      
+      if (writeError) {
+          if (writeError.code === '42501') {
+               results.push({ step: '写入测试 (RLS)', status: 'fail', msg: '权限拒绝！RLS 策略禁止了写入。请在 Supabase SQL Editor 执行提供的修复脚本。' });
+          } else {
+               results.push({ step: '写入测试', status: 'fail', msg: `写入失败 [${writeError.code}]: ${writeError.message}` });
+          }
+      } else {
+          results.push({ step: '写入测试', status: 'ok', msg: `写入成功 (延迟 ${Date.now() - t2}ms)` });
+          
+          // Cleanup
+          await supabase.from('app_config').delete().eq('key', 'sys_write_test');
+      }
+
+      return results;
   },
 
   async getRange(tableName: string, startDate: string, endDate: string): Promise<any[]> {
@@ -241,8 +300,5 @@ export const DB = {
     if (!supabase) return;
     const { error } = await supabase.from(tableName).delete().gt('id', 0);
     if (error) throw error;
-  },
-  
-  async getAllKeys(tableName: string): Promise<any[]> { return []; },
-  async getBatch(tableName: string, keys: any[]): Promise<any[]> { return []; }
+  }
 };
