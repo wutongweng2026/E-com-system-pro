@@ -1,7 +1,7 @@
 
 /**
  * Cloud-Native Database Adapter
- * v5.4.0 Upgrade: Adaptive Batch Upload & Deep Diagnostics
+ * v5.5.0 Upgrade: Real-time Speed Calculation & Anti-Freeze Logic
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
@@ -79,19 +79,20 @@ export const DB = {
     return getClient();
   },
 
-  // 核心上传逻辑：支持动态降级 (Adaptive Batch Sizing)
-  async bulkAdd(tableName: string, rows: any[], onProgress?: (percent: number) => void): Promise<void> {
+  // 核心上传逻辑：支持详细进度回调 (current, total)
+  async bulkAdd(tableName: string, rows: any[], onProgress?: (current: number, total: number) => void): Promise<void> {
     const supabase = getClient();
     if (!supabase) throw new Error(`云端连接初始化失败 (Supabase Client is null)。请检查配置。`);
 
     let conflictKey = undefined;
     if (tableName === 'fact_shangzhi') conflictKey = 'date,sku_code';
-    else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,tracked_sku_id,account_nickname';
+    // [Updated] Jingzhuntong now uses triple key: date + account + sku
+    else if (tableName === 'fact_jingzhuntong') conflictKey = 'date,account_nickname,tracked_sku_id';
     else if (tableName === 'fact_customer_service') conflictKey = 'date,agent_account';
     else if (tableName === 'app_config') conflictKey = 'key';
     else if (tableName === 'dim_skus') conflictKey = 'id';
 
-    // 数据清洗
+    // 数据清洗 (Secondary Safety Net)
     const cleanData = rows.map(({ id, ...rest }: any) => {
         const clean = { ...rest };
         if (tableName.startsWith('fact_')) { delete clean.id; }
@@ -101,7 +102,11 @@ export const DB = {
         
         clean.updated_at = new Date().toISOString(); 
         // 移除 undefined，转换 null
-        Object.keys(clean).forEach(key => { if (clean[key] === undefined) clean[key] = null; });
+        Object.keys(clean).forEach(key => { 
+            if (clean[key] === undefined) clean[key] = null; 
+            // 确保 account_nickname 存在，否则联合主键会失败
+            if (key === 'account_nickname' && !clean[key]) clean[key] = 'default';
+        });
         return clean;
     });
 
@@ -111,7 +116,7 @@ export const DB = {
     // 初始批量大小
     let currentBatchSize = 100; 
 
-    if (onProgress) onProgress(0);
+    if (onProgress) onProgress(0, total);
 
     while (processed < total) {
         // 动态切片
@@ -124,6 +129,7 @@ export const DB = {
         
         while (retries > 0 && !success) {
             try {
+                // ignoreDuplicates: false 确保 upsert 生效（更新旧数据）
                 const { error } = await supabase.from(tableName).upsert(chunk, { onConflict: conflictKey, ignoreDuplicates: false });
                 
                 if (error) {
@@ -138,7 +144,7 @@ export const DB = {
                 processed += chunk.length;
                 
                 // 如果成功且批量很小，尝试慢慢恢复
-                if (currentBatchSize < 100) currentBatchSize = Math.min(100, currentBatchSize * 2);
+                if (currentBatchSize < 200) currentBatchSize = Math.min(200, currentBatchSize * 2);
 
             } catch (e: any) {
                 lastError = e;
@@ -171,9 +177,11 @@ export const DB = {
         }
 
         if (onProgress) {
-            const percent = Math.min(100, Math.round((processed / total) * 100));
-            onProgress(percent);
+            onProgress(processed, total);
         }
+
+        // [关键] 释放主线程，防止浏览器在百万行处理时假死
+        await new Promise(r => setTimeout(r, 5));
     }
   },
 

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, BarChart3, HardDrive, RotateCcw, UploadCloud, Download, Wrench, ChevronDown, Check, FileSpreadsheet, Headset, Archive, X, Activity, Server, Zap, Sparkles, LayoutGrid, FileText, Loader2, LoaderCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { TableType, UploadHistory, Shop } from '../lib/types';
@@ -7,8 +7,39 @@ import { getTableName, detectTableType } from '../lib/helpers';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { parseExcelFile } from '../lib/excel';
 
-const SyncProgressModal = ({ isOpen, progress }: { isOpen: boolean, progress: number }) => {
+const SyncProgressModal = ({ isOpen, stats }: { isOpen: boolean, stats: { current: number, total: number, startTime: number } }) => {
+    const [speed, setSpeed] = useState(0); // rows per second
+    const [eta, setEta] = useState(0); // seconds remaining
+    
+    // Update metrics every 500ms based on props
+    useEffect(() => {
+        if (!isOpen || stats.total === 0 || stats.startTime === 0) return;
+        
+        const now = Date.now();
+        const elapsedSeconds = (now - stats.startTime) / 1000;
+        
+        if (elapsedSeconds > 1 && stats.current > 0) {
+            const currentSpeed = Math.round(stats.current / elapsedSeconds);
+            setSpeed(currentSpeed);
+            
+            const remaining = stats.total - stats.current;
+            if (currentSpeed > 0) {
+                setEta(Math.round(remaining / currentSpeed));
+            }
+        }
+    }, [stats, isOpen]);
+
     if (!isOpen) return null;
+    
+    const progress = stats.total > 0 ? Math.min(100, Math.round((stats.current / stats.total) * 100)) : 0;
+    
+    const formatTime = (seconds: number) => {
+        if (seconds < 60) return `${seconds}s`;
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}m ${s}s`;
+    };
+
     return (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
             <div className="bg-white rounded-[48px] shadow-2xl w-full max-w-md p-12 text-center animate-fadeIn border border-slate-200">
@@ -33,20 +64,37 @@ const SyncProgressModal = ({ isOpen, progress }: { isOpen: boolean, progress: nu
                     </div>
                 </div>
                 <h3 className="text-2xl font-black text-slate-900 mb-2">
-                    {progress === 0 ? '正在解析物理文件...' : '数据物理同步中'}
+                    {stats.total === 0 ? '正在解析物理文件...' : '数据物理同步中'}
                 </h3>
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-10">
-                    {progress === 0 ? 'Parsing Excel Stream...' : 'Uploading to Cloud Node...'}
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-8">
+                    {stats.total === 0 ? 'Parsing Excel Stream...' : 'Uploading to Cloud Node...'}
                 </p>
                 
                 <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden mb-4 p-0.5 shadow-inner">
                     <div className="bg-brand h-full rounded-full transition-all duration-300 shadow-[0_0_15px_rgba(112,173,71,0.5)]" style={{ width: `${Math.max(5, progress)}%` }}></div>
                 </div>
                 
-                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    <span>Sync Status: {progress === 0 ? 'Initializing' : 'Active'}</span>
+                <div className="flex justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest mb-6">
+                    <span>Sync Status: Active</span>
                     <span>{progress}% Completed</span>
                 </div>
+
+                {stats.total > 0 && (
+                    <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-6">
+                        <div className="bg-slate-50 rounded-2xl p-3">
+                            <p className="text-[8px] font-black text-slate-400 uppercase">Real-time Speed</p>
+                            <p className="text-sm font-black text-slate-800">{speed.toLocaleString()} rows/s</p>
+                        </div>
+                        <div className="bg-slate-50 rounded-2xl p-3">
+                            <p className="text-[8px] font-black text-slate-400 uppercase">Estimated Remaining</p>
+                            <p className="text-sm font-black text-brand">{eta > 0 ? formatTime(eta) : 'Calculating...'}</p>
+                        </div>
+                        <div className="col-span-2 bg-slate-50 rounded-2xl p-3">
+                             <p className="text-[8px] font-black text-slate-400 uppercase">Progress Detail</p>
+                             <p className="text-xs font-mono font-bold text-slate-600">{stats.current.toLocaleString()} / {stats.total.toLocaleString()} Rows</p>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -56,7 +104,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
   const [activeImportTab, setActiveImportTab] = useState<TableType>('shangzhi');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStats, setUploadStats] = useState({ current: 0, total: 0, startTime: 0 });
   const [defaultShopId, setDefaultShopId] = useState<string>('');
   
   // 批量修正功能状态
@@ -92,16 +140,16 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
   const handleProcessClick = () => {
     if (!selectedFile) return;
     setIsProcessing(true);
-    setUploadProgress(0);
+    setUploadStats({ current: 0, total: 0, startTime: Date.now() });
 
     const performUpload = async (tableType: TableType) => {
         try {
-            await onUpload(selectedFile, tableType, defaultShopId, (progress: number) => {
-                setUploadProgress(progress);
+            await onUpload(selectedFile, tableType, defaultShopId, (current: number, total: number) => {
+                setUploadStats(prev => ({ ...prev, current, total }));
             });
         } finally {
             setIsProcessing(false);
-            setUploadProgress(0);
+            setUploadStats({ current: 0, total: 0, startTime: 0 });
             setSelectedFile(null);
             setModalState({ isOpen: false, detectedType: null, selectedType: null, onConfirm: () => {} });
         }
@@ -129,6 +177,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
                     selectedType: activeImportTab,
                     onConfirm: () => {
                         setIsProcessing(true);
+                        setUploadStats({ current: 0, total: 0, startTime: Date.now() });
                         performUpload(detectedType);
                     }
                 });
@@ -224,7 +273,7 @@ export const DataCenterView = ({ onUpload, onBatchUpdate, history, factTables, s
 
   return (
     <>
-      <SyncProgressModal isOpen={isProcessing} progress={uploadProgress} />
+      <SyncProgressModal isOpen={isProcessing} stats={uploadStats} />
       
       <ConfirmModal
         isOpen={modalState.isOpen}

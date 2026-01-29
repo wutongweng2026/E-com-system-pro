@@ -128,8 +128,8 @@ export const App = () => {
     };
 
     // 统一数据上传处理器 - 支持进度回调
-    const handleUpload = async (file: File, type: TableType, shopId?: string, onProgress?: (p: number) => void) => {
-        // 重置客户端以确保获取最新配置 (Fix for stale client)
+    const handleUpload = async (file: File, type: TableType, shopId?: string, onProgress?: (current: number, total: number) => void) => {
+        // 重置客户端以确保获取最新配置
         DB.resetClient();
         
         return new Promise<void>((resolve, reject) => {
@@ -143,17 +143,21 @@ export const App = () => {
                     const headerMap: Record<string, string> = {};
                     const currentSchema = schemas[type];
                     
+                    // 辅助：建立字段类型映射，用于后续清洗数据
+                    const typeMap: Record<string, string> = {};
+                    
                     if (currentSchema && Array.isArray(currentSchema)) {
                         currentSchema.forEach((field: any) => {
                             // 映射 Label (e.g., 'CA') -> Key (e.g., 'paid_items')
                             headerMap[field.label] = field.key;
                             headerMap[field.label.trim()] = field.key;
+                            typeMap[field.key] = field.type;
                             
                             // 映射 Tags (e.g., '成交商品件数') -> Key
                             if (field.tags) {
                                 field.tags.forEach((tag: string) => headerMap[tag] = field.key);
                             }
-                            // 映射自身 Key (以防 Excel 表头已经是 DB 字段名)
+                            // 映射自身 Key
                             headerMap[field.key] = field.key;
                         });
                     }
@@ -162,7 +166,7 @@ export const App = () => {
                     const enrichedData = data.map(row => {
                         const mappedRow: any = {};
                         
-                        // 标准化日期 (优先处理)
+                        // 标准化日期
                         let normalizedDate = null;
                         if (row['日期']) {
                              if (typeof row['日期'] === 'number') {
@@ -176,7 +180,7 @@ export const App = () => {
                         }
                         if (normalizedDate) mappedRow['date'] = normalizedDate;
 
-                        // 注入 shopId (如果用户在下拉菜单选了)
+                        // 注入 shopId
                         if (shopId) {
                             const shop = shops.find(s => s.id === shopId);
                             if (shop) mappedRow['shop_name'] = shop.name;
@@ -184,26 +188,40 @@ export const App = () => {
                             mappedRow['shop_name'] = row['店铺名称'] || row['shop_name'];
                         }
 
-                        // 核心映射逻辑
+                        // 核心映射与清洗逻辑
                         Object.keys(row).forEach(excelKey => {
                             const cleanKey = excelKey.trim();
                             const dbKey = headerMap[cleanKey] || headerMap[cleanKey.toUpperCase()];
                             
                             if (dbKey) {
-                                // 防止覆盖已处理的 date/shop_name，除非新值非空
+                                // 防止覆盖已处理的 date/shop_name
                                 if ((dbKey === 'date' || dbKey === 'shop_name') && mappedRow[dbKey]) return;
-                                mappedRow[dbKey] = row[excelKey];
-                            } else {
-                                // 如果没有映射，保留原样? 
-                                // Supabase 会报错 "Column not found" 如果包含无效列。
-                                // 策略：仅保留映射成功的列，以及 date/shop_name。
+                                
+                                let value = row[excelKey];
+                                const fieldType = typeMap[dbKey];
+
+                                // [关键修复] 数值清洗：将 "-", "null", "" 转换为 0
+                                if (fieldType === 'INTEGER' || fieldType === 'REAL' || fieldType === 'NUMERIC') {
+                                    if (value === '-' || value === '' || value === null || value === 'null' || value === undefined) {
+                                        value = 0;
+                                    } else if (typeof value === 'string') {
+                                        // 移除可能的逗号或货币符号
+                                        const cleanVal = value.replace(/[¥,]/g, '').trim();
+                                        if (cleanVal === '-' || cleanVal === '') value = 0;
+                                        else value = Number(cleanVal);
+                                        
+                                        if (isNaN(value)) value = 0;
+                                    }
+                                }
+
+                                mappedRow[dbKey] = value;
                             }
                         });
 
                         return mappedRow;
                     });
 
-                    // 写入数据库 (Direct Cloud Upload)
+                    // 写入数据库
                     const tableName = `fact_${type}`;
                     await DB.bulkAdd(tableName, enrichedData, onProgress);
 
